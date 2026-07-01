@@ -13,8 +13,37 @@
 
 ## 数据来源
 
+### 武汉市及各区
+
 1. **武汉市教育局官网** - https://jyj.wuhan.gov.cn/zwdt/tsgg/
-2. **湖北省教育考试院** - http://www.hbea.edu.cn/html/jszp/index.html
+2. **武汉市人力资源和社会保障局** - http://rsj.wuhan.gov.cn/sy_20/jgzydwzp/
+3. **武汉东湖新技术开发区（光谷）** - https://www.wehdz.gov.cn/2022/zfxxgk/fdzdgk/zkzl/
+   - ⭐⭐⭐⭐⭐ 高价值：独立招聘体系，待遇好，招聘频繁
+4. **汉阳区人民政府（教育局）** - https://www.hanyang.gov.cn/zwgk_38/xxgkml/zlzk/
+   - ⭐⭐⭐⭐ 高价值
+
+### 武汉周边城市（1小时生活圈）
+
+5. **鄂州市教育局** - https://jyj.ezhou.gov.cn/xxgk/zc/gsgg/
+   - ⭐⭐⭐⭐ 高价值：距离武汉仅60km，数据丰富
+6. **黄石市教育局** - http://jyj.huangshi.gov.cn/dt/zytz/index.html
+   - ⭐⭐⭐⭐ 高价值：距离武汉80km
+7. **黄冈市教育局** - https://jyj.hg.gov.cn/
+   - ⭐⭐⭐⭐ 高价值：教育强市，有"优师计划"
+8. **蔡甸区人民政府（教育局）** - https://www.caidian.gov.cn/qgdwxxgk/qjbm/jyj_21923/zkly/
+   - ⭐⭐⭐ 中等价值
+9. **孝感市教育局** - https://jyj.xiaogan.gov.cn/c/xgsjyj/zkly/
+   - ⭐⭐⭐ 中等价值：有WAF防护，需测试
+
+### 省级数据源
+
+10. **湖北省教育考试院** - http://www.hbea.edu.cn/html/jszp/index.html
+
+### 微信公众号（搜狗微信搜索）
+
+11. **搜狗微信搜索** - https://weixin.sogou.com/
+    - ⭐⭐⭐⭐⭐ 高价值：覆盖全平台公众号文章，时效性最强
+    - 搜索关键词：武汉/湖北/黄石/鄂州/黄冈/孝感 教师招聘
 
 ## 使用方法
 
@@ -53,19 +82,28 @@ python -m http.server 8000
 
 ```
 wuhan-teacher-job-tracker/
-├── crawler/              # 爬虫脚本
-│   ├── main.py          # 主程序
-│   ├── crawl_wuhan_education.py  # 武汉市教育局爬虫
-│   ├── crawl_hubei_exam.py       # 湖北省教育考试院爬虫
-│   └── requirements.txt          # Python 依赖
-├── data/                # 数据文件
-│   └── jobs.json       # 爬取的招聘信息
-├── frontend/            # 前端页面
-│   ├── index.html      # 主页面
-│   ├── style.css       # 样式
-│   └── app.js          # JavaScript 逻辑
+├── crawler/                        # 爬虫脚本
+│   ├── main.py                    # 主程序
+│   ├── crawl_wuhan_education.py   # 武汉市教育局
+│   ├── crawl_wuhan_hr.py          # 武汉市人社局
+│   ├── crawl_hubei_exam.py        # 湖北省教育考试院
+│   ├── crawl_optics_valley.py     # 武汉东湖新技术开发区
+│   ├── crawl_hanyang.py           # 汉阳区人民政府
+│   ├── crawl_caidian.py           # 蔡甸区人民政府
+│   ├── crawl_ezhou.py             # 鄂州市教育局
+│   ├── crawl_huangshi.py          # 黄石市教育局
+│   ├── crawl_huanggang.py         # 黄冈市教育局
+│   ├── crawl_xiaogan.py           # 孝感市教育局
+│   └── merge_data.py              # 数据合并工具
+│   └── requirements.txt           # Python 依赖
+├── data/                          # 数据文件
+│   └── jobs.json                 # 爬取的招聘信息
+├── frontend/                      # 前端页面
+│   ├── index.html                # 主页面
+│   ├── style.css                 # 样式
+│   └── app.js                    # JavaScript 逻辑
 └── .github/
-    └── workflows/       # GitHub Actions 配置
+    └── workflows/                 # GitHub Actions 配置
         └── crawl.yml
 ```
 

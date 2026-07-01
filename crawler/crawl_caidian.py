@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-武汉市教育局官网招聘信息爬虫
-目标网站：https://jyj.wuhan.gov.cn/zwdt/tsgg/
+蔡甸区人民政府（教育局）招聘信息爬虫
+目标网站：https://www.caidian.gov.cn/qgdwxxgk/qjbm/jyj_21923/zkly/
+重要说明：
+- 蔡甸区教育局招聘信息
+- 无反爬，静态HTML
 """
 
 import requests
@@ -10,10 +13,10 @@ from bs4 import BeautifulSoup
 import json
 from crawl_utils import is_valid_job_posting, is_recent_date, extract_date_from_element, build_full_url
 
-def crawl_wuhan_education():
-    """爬取武汉市教育局通知公告页面"""
-    base_url = "https://jyj.wuhan.gov.cn"
-    target_url = f"{base_url}/zwdt/tsgg/"
+def crawl_caidian():
+    """爬取蔡甸区人民政府招聘信息"""
+    base_url = "https://www.caidian.gov.cn"
+    target_url = f"{base_url}/qgdwxxgk/qjbm/jyj_21923/zkly/"
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -56,19 +59,19 @@ def crawl_wuhan_education():
                 'title': title,
                 'url': full_url,
                 'date': date_str,
-                'source': '武汉市教育局',
+                'source': '蔡甸区人民政府',
                 'type': '教师招聘'
             }
             jobs.append(job)
             print(f"✓ 发现招聘信息: {title} ({date_str})")
         
-        print(f"\n武汉市教育局爬取完成，共找到 {len(jobs)} 条有效招聘信息")
+        print(f"\n蔡甸区人民政府爬取完成，共找到 {len(jobs)} 条有效招聘信息")
         
     except Exception as e:
-        print(f"爬取武汉市教育局时发生错误: {str(e)}")
+        print(f"爬取蔡甸区人民政府时发生错误: {str(e)}")
     
     return jobs
 
 if __name__ == '__main__':
-    jobs = crawl_wuhan_education()
+    jobs = crawl_caidian()
     print(json.dumps(jobs, ensure_ascii=False, indent=2))

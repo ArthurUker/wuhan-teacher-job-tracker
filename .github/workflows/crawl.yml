@@ -2,7 +2,7 @@ name: 爬取教师招聘信息
 
 on:
   schedule:
-    # 每天早上8点运行
+    # 每天北京时间8点运行 (UTC 0:00)
     - cron: '0 0 * * *'
   workflow_dispatch:  # 允许手动触发
 
@@ -11,28 +11,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
     - name: 检出代码
       uses: actions/checkout@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: 设置 Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    
+
     - name: 安装依赖
       run: |
         cd crawler
         pip install -r requirements.txt
-    
+        python -m playwright install chromium
+
     - name: 运行爬虫
       run: |
         cd crawler
         python main.py
-    
+
     - name: 提交更新
       run: |
         git config --local user.email "action@github.com"
@@ -40,3 +41,32 @@ jobs:
         git add data/jobs.json
         git diff --quiet && git diff --staged --quiet || git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
         git push
+
+  # 爬虫运行成功后，重新部署 GitHub Pages
+  deploy-pages:
+    needs: crawl
+    if: always() && needs.crawl.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+    - name: 设置 Pages
+      uses: actions/configure-pages@v4
+
+    - name: 上传构建产物
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '.'
+
+    - name: 部署到 GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

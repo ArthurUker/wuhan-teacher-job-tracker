@@ -31,6 +31,16 @@ def main():
     
     print()
     
+    # 爬取武汉市人社局
+    try:
+        from crawl_wuhan_hr import crawl_wuhan_hr
+        wuhan_hr_jobs = crawl_wuhan_hr()
+        all_jobs.extend(wuhan_hr_jobs)
+    except Exception as e:
+        print(f"爬取武汉市人社局失败: {str(e)}")
+    
+    print()
+    
     # 爬取湖北省教育考试院
     try:
         from crawl_hubei_exam import crawl_hubei_exam
@@ -38,6 +48,86 @@ def main():
         all_jobs.extend(hubei_jobs)
     except Exception as e:
         print(f"爬取湖北省教育考试院失败: {str(e)}")
+    
+    print()
+    
+    # 爬取武汉东湖新技术开发区（光谷）
+    try:
+        from crawl_optics_valley import crawl_optics_valley
+        optics_valley_jobs = crawl_optics_valley()
+        all_jobs.extend(optics_valley_jobs)
+    except Exception as e:
+        print(f"爬取武汉东湖新技术开发区失败: {str(e)}")
+    
+    print()
+    
+    # 爬取汉阳区人民政府
+    try:
+        from crawl_hanyang import crawl_hanyang
+        hanyang_jobs = crawl_hanyang()
+        all_jobs.extend(hanyang_jobs)
+    except Exception as e:
+        print(f"爬取汉阳区人民政府失败: {str(e)}")
+    
+    print()
+    
+    # 爬取蔡甸区人民政府
+    try:
+        from crawl_caidian import crawl_caidian
+        caidian_jobs = crawl_caidian()
+        all_jobs.extend(caidian_jobs)
+    except Exception as e:
+        print(f"爬取蔡甸区人民政府失败: {str(e)}")
+    
+    print()
+    
+    # 爬取鄂州市教育局
+    try:
+        from crawl_ezhou import crawl_ezhou
+        ezhou_jobs = crawl_ezhou()
+        all_jobs.extend(ezhou_jobs)
+    except Exception as e:
+        print(f"爬取鄂州市教育局失败: {str(e)}")
+    
+    print()
+    
+    # 爬取黄石市教育局
+    try:
+        from crawl_huangshi import crawl_huangshi
+        huangshi_jobs = crawl_huangshi()
+        all_jobs.extend(huangshi_jobs)
+    except Exception as e:
+        print(f"爬取黄石市教育局失败: {str(e)}")
+    
+    print()
+    
+    # 爬取黄冈市教育局
+    try:
+        from crawl_huanggang import crawl_huanggang
+        huanggang_jobs = crawl_huanggang()
+        all_jobs.extend(huanggang_jobs)
+    except Exception as e:
+        print(f"爬取黄冈市教育局失败: {str(e)}")
+    
+    print()
+    
+    # 爬取孝感市教育局
+    try:
+        from crawl_xiaogan import crawl_xiaogan
+        xiaogan_jobs = crawl_xiaogan()
+        all_jobs.extend(xiaogan_jobs)
+    except Exception as e:
+        print(f"爬取孝感市教育局失败: {str(e)}")
+    
+    print()
+    
+    # 爬取搜狗微信搜索（公众号文章）
+    try:
+        from crawl_sogou_wechat import crawl_sogou_wechat
+        sogou_jobs = crawl_sogou_wechat()
+        all_jobs.extend(sogou_jobs)
+    except Exception as e:
+        print(f"爬取搜狗微信搜索失败: {str(e)}")
     
     print()
     print("=" * 50)
