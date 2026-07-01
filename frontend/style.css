@@ -1,0 +1,191 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 40px;
+    text-align: center;
+}
+
+header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.controls {
+    padding: 30px;
+    background: #f8f9fa;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+#searchInput {
+    flex: 1;
+    min-width: 300px;
+    padding: 12px 20px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+#searchInput:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+#sourceFilter {
+    padding: 12px 20px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 16px;
+    background: white;
+    cursor: pointer;
+    min-width: 200px;
+}
+
+button {
+    padding: 12px 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+button:hover {
+    transform: translateY(-2px);
+}
+
+.stats {
+    padding: 20px 30px;
+    background: #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #666;
+}
+
+.job-list {
+    padding: 30px;
+}
+
+.job-item {
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 20px;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.job-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
+    transform: translateY(-2px);
+}
+
+.job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+
+.job-title {
+    font-size: 1.3em;
+    color: #333;
+    flex: 1;
+    margin-right: 15px;
+}
+
+.job-source {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.job-meta {
+    display: flex;
+    gap: 20px;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.job-date {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.job-type {
+    background: #f0f0f0;
+    padding: 3px 10px;
+    border-radius: 5px;
+}
+
+.loading {
+    text-align: center;
+    padding: 60px;
+    color: #666;
+    font-size: 1.2em;
+}
+
+.no-results {
+    text-align: center;
+    padding: 60px;
+    color: #999;
+    font-size: 1.1em;
+}
+
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.8em;
+    }
+    
+    .controls {
+        flex-direction: column;
+    }
+    
+    #searchInput {
+        min-width: 100%;
+    }
+    
+    .job-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+}

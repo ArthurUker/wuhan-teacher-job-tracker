@@ -1,0 +1,40 @@
+name: 爬取教师招聘信息
+
+on:
+  schedule:
+    # 每天早上8点运行
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: 安装依赖
+      run: |
+        cd crawler
+        pip install -r requirements.txt
+    
+    - name: 运行爬虫
+      run: |
+        cd crawler
+        python main.py
+    
+    - name: 提交更新
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add data/jobs.json
+        git diff --quiet && git diff --staged --quiet || git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
+        git push

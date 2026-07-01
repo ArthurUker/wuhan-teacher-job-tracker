@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>武汉教师招聘信息追踪系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎓 武汉教师招聘信息追踪系统</h1>
+            <p class="subtitle">实时监控武汉市及湖北省教师招聘信息</p>
+        </header>
+
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="搜索招聘信息..." oninput="filterJobs()">
+            <select id="sourceFilter" onchange="filterJobs()">
+                <option value="">所有来源</option>
+                <option value="武汉市教育局">武汉市教育局</option>
+                <option value="湖北省教育考试院">湖北省教育考试院</option>
+            </select>
+            <button onclick="loadJobs()">🔄 刷新数据</button>
+        </div>
+
+        <div class="stats">
+            <span id="totalCount">共 0 条信息</span>
+            <span id="lastUpdate">最后更新: --</span>
+        </div>
+
+        <div id="jobList" class="job-list">
+            <p class="loading">正在加载数据...</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
