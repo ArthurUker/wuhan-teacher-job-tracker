@@ -150,3 +150,31 @@ def build_full_url(href, base_url, target_url):
             return target_url + href
         else:
             return target_url.rsplit('/', 1)[0] + '/' + href
+
+
+def retry_request(url, headers=None, timeout=30, retries=3, backoff=2):
+    """
+    带重试的 HTTP GET 请求，应对偶发网络错误（如 DNS 抖动、连接被重置）。
+    对 IP 级封锁无效，但能恢复瞬时网络故障。
+    """
+    import requests
+    import time
+
+    if headers is None:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/120.0.0.0 Safari/537.36'
+        }
+
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            return requests.get(url, headers=headers, timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            last_err = e
+            if attempt < retries:
+                wait = backoff ** (attempt - 1)
+                print(f"  请求失败({attempt}/{retries})，{wait}秒后重试: {e}")
+                time.sleep(wait)
+    raise last_err

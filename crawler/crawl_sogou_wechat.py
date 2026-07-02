@@ -112,7 +112,7 @@ def is_relevant_job(title, summary=''):
 def is_within_months(date_str, months=6):
     """判断日期是否在指定月数内"""
     if date_str == '未知日期':
-        return False  # 微信搜索结果日期未知的一律过滤掉
+        return True  # 日期未知时保留，避免误杀近期公众号文章（搜狗结果本身按时间排序）
 
     try:
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
