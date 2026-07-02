@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 搜狗微信搜索爬虫 - 搜索公众号文章
+使用 Playwright 跟随搜狗跳转，获取 mp.weixin.qq.com 永久链接
 """
 
 import requests
@@ -16,6 +17,62 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from crawl_utils import is_valid_job_posting, extract_teacher_tag
+
+
+# ========== Playwright 跳转跟踪 ==========
+
+def follow_sogou_with_playwright(sogou_url, headless=True):
+    """
+    用 Playwright 跟随搜狗跳转，获取真实的 mp.weixin.qq.com 文章链接。
+    返回 (success: bool, final_url: str)
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("  ⚠️ 未安装 playwright，跳过跳转跟踪。请运行: pip install playwright && playwright install chromium")
+        return False, sogou_url
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=headless)
+            context = browser.new_context(
+                user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                viewport={'width': 1280, 'height': 800},
+            )
+            page = context.new_page()
+
+            # 监听 response，捕获 mp.weixin.qq.com 链接
+            real_url = None
+
+            def _on_response(response):
+                nonlocal real_url
+                url = response.url
+                if 'mp.weixin.qq.com' in url and '/s/' in url:
+                    real_url = url
+
+            page.on('response', _on_response)
+
+            print(f"    [PW] 浏览器跟随跳转: {sogou_url[:60]}...")
+            try:
+                page.goto(sogou_url, timeout=20000, wait_until='domcontentloaded')
+                time.sleep(2)  # 等待 JS 跳转完成
+            except Exception:
+                pass  # 超时也继续，可能已经跳转了
+
+            final_url = page.url
+            browser.close()
+
+            if real_url:
+                return True, real_url
+            if 'mp.weixin.qq.com' in final_url:
+                return True, final_url
+
+            # 未能跳转，返回原始 sogou 链接
+            return False, sogou_url
+
+    except Exception as e:
+        print(f"  [PW] 执行失败: {e}")
+        return False, sogou_url
 
 
 # ========== 过滤规则（保留用于 should_keep_article，但已改用 is_valid_job_posting） ==========
@@ -324,19 +381,14 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             if sogou_url.startswith('/'):
                                 sogou_url = 'https://weixin.sogou.com' + sogou_url
 
-                            # 跟随搜狗跳转，获取微信文章原始URL（mp.weixin.qq.com）
+                            # 用 Playwright 跟随跳转，获取微信文章原始URL（mp.weixin.qq.com）
                             wechat_url = sogou_url
-                            try:
-                                resp = requests.head(sogou_url, headers=headers, timeout=10,
-                                                     allow_redirects=True)
-                                final_url = resp.url
-                                if 'mp.weixin.qq.com' in final_url:
-                                    wechat_url = final_url
-                                    print(f"    获取到原始链接: {final_url[:80]}...")
-                                else:
-                                    print(f"    跳转后仍非微信原文: {final_url[:60]}...，保留搜狗链接")
-                            except Exception as e:
-                                print(f"    跟踪跳转失败: {e}，保留搜狗链接")
+                            success, real_url = follow_sogou_with_playwright(sogou_url, headless=True)
+                            if success:
+                                wechat_url = real_url
+                                print(f"    ✅ 获取真实链接: {real_url[:80]}...")
+                            else:
+                                print(f"    ⚠️ 未能获取真实链接，保留搜狗链接")
 
                             # 提取公众号名称
                             account_name = '未知公众号'
