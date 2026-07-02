@@ -12,7 +12,7 @@
 
 from bs4 import BeautifulSoup
 import json
-from crawl_utils import is_valid_job_posting, is_recent_date, extract_date_from_element, build_full_url, retry_request
+from crawl_utils import is_valid_job_posting, is_recent_date, extract_date_from_element, build_full_url, retry_request, extract_teacher_tag
 
 def crawl_xiaogan():
     """爬取孝感市教育局招聘信息"""
@@ -79,7 +79,7 @@ def crawl_xiaogan():
                 'url': full_url,
                 'date': date_str,
                 'source': '孝感市教育局',
-                'type': '教师招聘'
+                'type': extract_teacher_tag(title)
             }
             jobs.append(job)
             print(f"✓ 发现招聘信息: {title} ({date_str})")

@@ -13,7 +13,7 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-from crawl_utils import is_valid_job_posting, is_recent_date, extract_date_from_element, build_full_url
+from crawl_utils import is_valid_job_posting, is_recent_date, extract_date_from_element, build_full_url, extract_teacher_tag
 
 def crawl_ezhou():
     """爬取鄂州市教育局招聘信息"""
@@ -62,7 +62,7 @@ def crawl_ezhou():
                 'url': full_url,
                 'date': date_str,
                 'source': '鄂州市教育局',
-                'type': '教师招聘'
+                'type': extract_teacher_tag(title)
             }
             jobs.append(job)
             print(f"✓ 发现招聘信息: {title} ({date_str})")

@@ -9,9 +9,16 @@ from bs4 import BeautifulSoup
 import time
 import re
 from datetime import datetime, timedelta
+import sys
+import os
+
+# 添加当前目录到 path，以便导入 crawl_utils
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from crawl_utils import is_valid_job_posting, extract_teacher_tag
 
 
-# ========== 过滤规则 ==========
+# ========== 过滤规则（保留用于 should_keep_article，但已改用 is_valid_job_posting） ==========
 
 # 需要保留的模式（即使包含"学院/大学"，也保留）
 KEEP_PATTERNS = [
@@ -360,6 +367,16 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             deadline = extract_deadline(title, summary)
                             urgent = is_urgent(deadline)
 
+                            # 过滤非教师招聘信息（使用 crawl_utils.py 统一过滤规则）
+                            if not is_valid_job_posting(title):
+                                print(f"    跳过非教师招聘: {title[:60]}")
+                                continue
+                            
+                            # 地区过滤（仅保留武汉及周边地市）
+                            if not is_local_area(title):
+                                print(f"    跳过非本地招聘: {title[:60]}")
+                                continue
+
                             article = {
                                 'title': title,
                                 'url': sogou_url,
@@ -371,14 +388,9 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                                 'urgent': urgent,              # 是否临近截止
                                 'summary': summary,
                                 'source': '微信公众号',
-                                'type': '公众号文章',
+                                'type': extract_teacher_tag(title),
                                 'keyword': keyword,
                             }
-
-                            # 过滤非中小学教师招聘信息
-                            if not should_keep_article(title):
-                                print(f"    跳过非中小学招聘: {title[:60]}")
-                                continue
 
                             keyword_articles.append(article)
 
