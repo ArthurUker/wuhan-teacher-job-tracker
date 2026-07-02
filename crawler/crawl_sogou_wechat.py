@@ -9,6 +9,53 @@ from bs4 import BeautifulSoup
 import time
 import re
 
+
+# ========== 过滤规则 ==========
+
+# 需要保留的模式（即使包含"学院/大学"，也保留）
+KEEP_PATTERNS = [
+    '赴高校', '附属中学', '附中', '附属学校', '大学附属', '附小',
+    '教育局', '事业单位', '公招', '编制', '公开招聘', '教师公开招聘',
+    '中小学', '中学', '小学', '初中', '高中',
+]
+
+# 需要直接排除的模式（标题匹配即丢弃）
+BLOCK_PATTERNS = [
+    '职业学院', '职业技术学院', '技工学校',
+    '辅导员', '博士后', '博士研究生', '硕士研究生',
+    '人才引进.*高校', '高校.*招聘.*教师',  # 高校作为雇主的招聘
+]
+
+# 高校雇主关键词（出现在"招聘"之前则判定为高校招聘）
+UNIVERSITY_EMPLOYER_KEYS = ['大学', '学院']
+
+
+def should_keep_article(title):
+    """
+    判断是否为中小学/公立学校教师招聘信息。
+    返回 True 表示保留，False 表示丢弃。
+    """
+    # 先检查保留模式
+    for pattern in KEEP_PATTERNS:
+        if pattern in title:
+            return True
+
+    # 再检查排除模式
+    for pattern in BLOCK_PATTERNS:
+        if re.search(pattern, title):
+            return False
+
+    # 检查是否为高校作为雇主的招聘
+    recruit_idx = title.find('招聘')
+    if recruit_idx > 0:
+        prefix = title[:recruit_idx]
+        for key in UNIVERSITY_EMPLOYER_KEYS:
+            if key in prefix:
+                return False
+
+    # 默认保留
+    return True
+
 # 搜索关键词列表 - 覆盖武汉及周边地市各类教师招聘信息
 SEARCH_KEYWORDS = [
     # 武汉及周边地市教师招聘
@@ -140,6 +187,11 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                                 'keyword': keyword,
                                 'date': publish_time if publish_time != '未知时间' else '未知日期'
                             }
+
+                            # 过滤非中小学教师招聘信息
+                            if not should_keep_article(title):
+                                print(f"    跳过非中小学招聘: {title[:60]}")
+                                continue
 
                             keyword_articles.append(article)
 
