@@ -3,12 +3,12 @@ let activeSource = ''; // 当前选中的来源，空字符串表示"所有"
 
 // Cloudflare Worker 代理 URL（部署后替换为实际地址）
 // 留空则只做本地数据刷新，不触发爬虫
-const TRIGGER_WORKER_URL = '';
+const TRIGGER_WORKER_URL = 'https://wuhan-teacher-job-tracker.arthuruker.workers.dev';
 
 // Worker 鉴权 Token（如果 Worker 配置了 AUTH_TOKEN 鉴权，此处需填写对应 Token）
 // ⚠️ 注意：前端是纯静态页面，此 Token 会被任何访问者看到。
 // 建议：使用权限最小的 Token，或仅用于防止扫描式滥用。
-const AUTH_TOKEN = '';
+const AUTH_TOKEN = 'guorenkang';
 
 async function loadJobs() {
     const jobList = document.getElementById('jobList');
