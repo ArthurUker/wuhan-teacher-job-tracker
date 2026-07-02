@@ -8,6 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import re
+from datetime import datetime, timedelta
 
 
 # ========== 过滤规则 ==========
@@ -55,6 +56,116 @@ def should_keep_article(title):
 
     # 默认保留
     return True
+
+
+# ========== 时间提取工具 ==========
+
+def extract_title_date(title):
+    """
+    从标题中提取日期（优先）。
+    支持格式：2026-07-02, 2026年07月02日, 7月2日, 7月等。
+    返回格式：YYYY-MM-DD 或 YYYY-MM 或 '未知日期'。
+    """
+    now = datetime.now()
+
+    # 完整日期：2026-07-02 或 2026年07月02日
+    m = re.search(r'(\d{4})[年\-](\d{1,2})[月\-](\d{1,2})', title)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+
+    # 月日：7月2日 或 07月02日（默认当年）
+    m = re.search(r'(\d{1,2})月(\d{1,2})[日号]', title)
+    if m:
+        return f"{now.year}-{m.group(1).zfill(2)}-{m.group(2).zfill(2)}"
+
+    # 仅月份：2026年7月 或 7月
+    m = re.search(r'(\d{4})年(\d{1,2})月', title)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}"
+    m = re.search(r'(\d{1,2})月', title)
+    if m:
+        return f"{now.year}-{m.group(1).zfill(2)}"
+
+    return None
+
+
+def parse_publish_time(publish_time_str):
+    """
+    解析公众号发布时间字符串，返回标准日期字符串。
+    支持：2026-07-02, 2026年07月02日, 3天前, 5小时前, 昨天等。
+    """
+    now = datetime.now()
+
+    if not publish_time_str or publish_time_str == '未知时间':
+        return '未知日期'
+
+    # 标准格式
+    m = re.match(r'(\d{4})-(\d{2})-(\d{2})', publish_time_str)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+    m = re.match(r'(\d{4})年(\d{2})月(\d{2})日', publish_time_str)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+    # 相对时间
+    m = re.match(r'(\d+)天前', publish_time_str)
+    if m:
+        d = now - timedelta(days=int(m.group(1)))
+        return d.strftime('%Y-%m-%d')
+
+    m = re.match(r'(\d+)小时前', publish_time_str)
+    if m:
+        return now.strftime('%Y-%m-%d')
+
+    m = re.match(r'昨天', publish_time_str)
+    if m:
+        d = now - timedelta(days=1)
+        return d.strftime('%Y-%m-%d')
+
+    return '未知日期'
+
+
+def extract_deadline(title, summary=''):
+    """
+    从标题或摘要中提取报名/截止日期。
+    返回：截止日期字符串（YYYY-MM-DD）或 None。
+    """
+    text = title + ' ' + summary
+
+    # 截止/报名截止/报名截止时间
+    patterns = [
+        r'截止.{0,3}?(\d{4})[年\-](\d{1,2})[月\-](\d{1,2})',
+        r'截止.{0,3}?(\d{1,2})月(\d{1,2})[日号]',
+        r'报名.{0,5}?(\d{4})[年\-](\d{1,2})[月\-](\d{1,2})',
+        r'报名.{0,5}?(\d{1,2})月(\d{1,2})[日号]',
+        r'时间为.*?(\d{4})[年\-](\d{1,2})[月\-](\d{1,2})',
+    ]
+
+    for pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            if len(m.groups()) == 3:
+                return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+            elif len(m.groups()) == 2:
+                now = datetime.now()
+                return f"{now.year}-{m.group(1).zfill(2)}-{m.group(2).zfill(2)}"
+
+    return None
+
+
+def is_urgent(deadline_str):
+    """
+    判断截止日期是否临近（3天内）。
+    """
+    if not deadline_str or deadline_str == '未知日期':
+        return False
+    try:
+        d = datetime.strptime(deadline_str, '%Y-%m-%d')
+        now = datetime.now()
+        return (d - now).days <= 3
+    except ValueError:
+        return False
 
 # 搜索关键词列表 - 覆盖武汉及周边地市各类教师招聘信息
 SEARCH_KEYWORDS = [
@@ -155,8 +266,8 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                                         account_name = text
                                         break
 
-                            # 提取发布时间
-                            publish_time = '未知时间'
+                            # 提取发布时间（公众号发布时间）
+                            publish_time_raw = '未知时间'
                             time_text = div.get_text()
                             time_patterns = [
                                 r'(\d{4}-\d{2}-\d{2})',
@@ -167,8 +278,14 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             for pattern in time_patterns:
                                 match = re.search(pattern, time_text)
                                 if match:
-                                    publish_time = match.group(1)
+                                    publish_time_raw = match.group(1)
                                     break
+
+                            publish_time = parse_publish_time(publish_time_raw)
+
+                            # 从标题提取日期（优先于发布时间）
+                            title_date = extract_title_date(title)
+                            final_date = title_date if title_date else publish_time
 
                             # 提取摘要
                             summary = ''
@@ -176,16 +293,23 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             if summary_elem:
                                 summary = summary_elem.get_text(strip=True)[:200]
 
+                            # 提取截止日期
+                            deadline = extract_deadline(title, summary)
+                            urgent = is_urgent(deadline)
+
                             article = {
                                 'title': title,
                                 'url': sogou_url,
                                 'account_name': account_name,
-                                'publish_time': publish_time,
+                                'publish_time': publish_time,   # 公众号发布日期
+                                'title_date': title_date or '', # 标题中提取的日期
+                                'date': final_date,            # 优先用标题日期，其次用发布日期
+                                'deadline': deadline or '',    # 截止日期
+                                'urgent': urgent,              # 是否临近截止
                                 'summary': summary,
                                 'source': '微信公众号',
                                 'type': '公众号文章',
                                 'keyword': keyword,
-                                'date': publish_time if publish_time != '未知时间' else '未知日期'
                             }
 
                             # 过滤非中小学教师招聘信息

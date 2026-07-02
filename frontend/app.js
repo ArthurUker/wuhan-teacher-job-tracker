@@ -106,18 +106,46 @@ function displayJobs(jobs) {
         return;
     }
     
-    jobList.innerHTML = jobs.map(job => `
+    jobList.innerHTML = jobs.map(job => {
+        // 构建日期显示：标题日期 + 发布日期
+        let dateHtml = '';
+        if (job.title_date && job.publish_time && job.publish_time !== '未知日期') {
+            dateHtml = `📅 标题日期: ${job.title_date} | 发布: ${job.publish_time}`;
+        } else if (job.title_date) {
+            dateHtml = `📅 ${job.title_date}`;
+        } else if (job.publish_time && job.publish_time !== '未知日期') {
+            dateHtml = `📅 发布: ${job.publish_time}`;
+        } else {
+            dateHtml = `📅 ${job.date}`;
+        }
+
+        // 截止日期：标红加粗
+        let deadlineHtml = '';
+        if (job.deadline) {
+            const style = job.urgent ? 'color:#e74c3c;font-weight:bold;' : 'color:#e67e22;';
+            deadlineHtml = `<div class="job-deadline" style="${style}">⏰ 截止: ${job.deadline}</div>`;
+        }
+
+        // 公众号名称
+        let accountHtml = '';
+        if (job.account_name && job.account_name !== '未知公众号') {
+            accountHtml = `<div class="job-account" style="font-size:0.8em;color:#999;margin-top:4px;">📢 ${job.account_name}</div>`;
+        }
+
+        return `
         <div class="job-item" onclick="window.open('${job.url}', '_blank')">
             <div class="job-header">
                 <div class="job-title">${job.title}</div>
                 <div class="job-source">${job.source}</div>
             </div>
             <div class="job-meta">
-                <div class="job-date">📅 ${job.date}</div>
+                <div class="job-date">${dateHtml}</div>
                 <div class="job-type">${job.type}</div>
             </div>
-        </div>
-    `).join('');
+            ${deadlineHtml}
+            ${accountHtml}
+        </div>`;
+    }).join('');
 }
 
 // 页面加载时自动加载数据
