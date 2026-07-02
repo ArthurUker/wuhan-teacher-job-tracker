@@ -17,9 +17,10 @@ from crawl_utils import is_valid_job_posting, extract_teacher_tag
 
 
 def clean_jobs():
-    """清洗 jobs.json 数据"""
-    input_file = '../data/jobs.json'
-    output_file = '../data/jobs.json'
+    """清洗 jobs.json 数据：过滤 + 去重 + 重打标签"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    input_file = os.path.join(base_dir, 'data', 'jobs.json')
+    output_file = input_file
 
     print("=" * 60)
     print("数据清洗开始（使用 crawl_utils.py 统一过滤规则）")
@@ -29,38 +30,85 @@ def clean_jobs():
     with open(input_file, 'r', encoding='utf-8') as f:
         jobs = json.load(f)
 
-    print(f"清洗前条目总数：{len(jobs)} 条")
+    original_count = len(jobs)
+    print(f"原始条目总数：{original_count} 条")
 
-    # 过滤 + 重新打标签
-    cleaned = []
-    removed = []
+    # ===== Step 1: 过滤无效招聘 =====
+    filtered = []
+    removed_by_filter = []
 
     for job in jobs:
         title = job.get('title', '')
         if is_valid_job_posting(title):
-            # 重新生成标签（动态）
-            job['type'] = extract_teacher_tag(title)
-            cleaned.append(job)
+            filtered.append(job)
         else:
-            removed.append(title)
+            removed_by_filter.append(title)
+
+    print(f"Step1 过滤后：{len(filtered)} 条（清除 {len(removed_by_filter)} 条非教师招聘）")
+
+    # ===== Step 2: 按标题去重（保留最新的一条）=====
+    seen_titles = {}
+    for job in filtered:
+        title = job.get('title', '').strip()
+        if not title:
+            continue
+        if title not in seen_titles:
+            seen_titles[title] = job
+        else:
+            # 保留有日期更新的、或字段更完整的那条
+            existing = seen_titles[title]
+            existing_date = existing.get('date') or existing.get('pubDate') or ''
+            new_date = job.get('date') or job.get('pubDate') or ''
+            if new_date >= existing_date:
+                seen_titles[title] = job
+
+    deduped = list(seen_titles.values())
+    dupe_count = len(filtered) - len(deduped)
+    print(f"Step2 去重后：{len(deduped)} 条（去除 {dupe_count} 条重复数据）")
+
+    # ===== Step 3: 重新打标签 + 排序（按日期降序）=====
+    cleaned = []
+    for job in deduped:
+        title = job.get('title', '')
+        job['type'] = extract_teacher_tag(title)
+        cleaned.append(job)
+
+    # 按日期降序排列（最新的在前）
+    cleaned.sort(
+        key=lambda x: x.get('date') or x.get('pubDate') or '',
+        reverse=True,
+    )
 
     print("=" * 60)
     print(f"清洗完成：")
-    print(f"  清洗后保留：{len(cleaned)} 条")
-    print(f"  被清除：{len(removed)} 条")
+    print(f"  原始总数：{original_count} 条")
+    print(f"  过滤清除：{len(removed_by_filter)} 条")
+    print(f"  去重清除：{dupe_count} 条")
+    print(f"  最终保留：{len(cleaned)} 条")
     print("=" * 60)
 
-    # 输出被清除的条目（供人工抽样核验）
-    if removed:
-        print("\n被清除的条目标题列表：")
-        for i, title in enumerate(removed, 1):
-            print(f"  {i}. {title}")
+    # 输出被过滤掉的条目
+    if removed_by_filter:
+        print("\n【被过滤的非教师招聘】共 {} 条：".format(len(removed_by_filter)))
+        for i, title in enumerate(removed_by_filter[:20], 1):
+            print("  {}. {}".format(i, title))
+        if len(removed_by_filter) > 20:
+            print("  ... 还有 {} 条".format(len(removed_by_filter) - 20))
 
     # 写回文件
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(cleaned, f, ensure_ascii=False, indent=2)
 
     print(f"\n已保存到: {output_file}")
+
+    # 按来源统计
+    source_stats = {}
+    for job in cleaned:
+        src = job.get('source', '未知')
+        source_stats[src] = source_stats.get(src, 0) + 1
+    print("\n按来源统计：")
+    for src, cnt in sorted(source_stats.items(), key=lambda x: -x[1]):
+        print("  {}: {} 条".format(src, cnt))
 
     # 随机抽样 10 条确认
     if cleaned:
