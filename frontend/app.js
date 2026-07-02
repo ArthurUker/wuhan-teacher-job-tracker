@@ -53,15 +53,39 @@ function selectSource(source) {
 
 function filterJobs() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const excludeUniv = document.getElementById('excludeUniversity').checked;
     
     let filtered = allJobs.filter(job => {
         const matchSearch = job.title.toLowerCase().includes(searchTerm) || 
                           job.source.toLowerCase().includes(searchTerm);
         const matchSource = !activeSource || job.source === activeSource;
-        return matchSearch && matchSource;
+        
+        // 排除高校招聘（高校作为雇主招教员）
+        let matchUniv = true;
+        if (excludeUniv) {
+            matchUniv = !isUniversityRecruitment(job.title);
+        }
+        
+        return matchSearch && matchSource && matchUniv;
     });
     
     displayJobs(filtered);
+}
+
+/**
+ * 判断标题是否为高校招聘（高校作为雇主招教员，需排除）
+ * 保留：赴高校专项招聘、大学附属学校招聘
+ */
+function isUniversityRecruitment(title) {
+    const keepPatterns = ['赴高校', '附属中学', '附中', '附属学校', '大学附属', '附小'];
+    for (const p of keepPatterns) {
+        if (title.includes(p)) return false;
+    }
+    // "大学/学院/高校" 出现在 "招聘" 之前 → 高校是雇主
+    const recruitIdx = title.indexOf('招聘');
+    if (recruitIdx < 0) return false;
+    const prefix = title.substring(0, recruitIdx);
+    return ['大学', '学院', '高校'].some(k => prefix.includes(k));
 }
 
 function displayJobs(jobs) {

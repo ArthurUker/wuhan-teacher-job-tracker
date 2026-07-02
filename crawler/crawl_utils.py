@@ -42,6 +42,16 @@ def is_valid_job_posting(title):
         if exc in title:
             return False
 
+    # 排除高校作为雇主的招聘（即高校招教员，而非K-12学校招老师）
+    # 判断逻辑：标题里"大学/学院/高校"出现在"招聘"之前，且不含保留关键词
+    recruit_idx = title.find('招聘')
+    if recruit_idx >= 0:
+        prefix = title[:recruit_idx]
+        is_univ_employer = any(k in prefix for k in ['大学', '学院', '高校'])
+        is_keep = any(k in title for k in ['赴高校', '附属中学', '附中', '附属学校', '大学附属', '附小'])
+        if is_univ_employer and not is_keep:
+            return False
+
     return True
 
 def is_recent_date(date_str, title='', months=6):
