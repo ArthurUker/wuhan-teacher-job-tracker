@@ -7,13 +7,31 @@
 import json
 import re
 
-# ========== 过滤规则（与 crawl_sogou_wechat.py 保持一致）==========
+# ========== 过滤规则 ==========
 
 # 需要保留的模式（即使包含"学院/大学"，也保留）
 KEEP_PATTERNS = [
     '赴高校', '附属中学', '附中', '附属学校', '大学附属', '附小',
-    '教育局', '事业单位', '公招', '编制', '公开招聘', '教师公开招聘',
+    '教育局', '公招', '编制', '公开招聘', '教师公开招聘',
     '中小学', '中学', '小学', '初中', '高中',
+]
+
+# 武汉及周边地市关键词（必须包含其中之一才保留）
+LOCAL_AREA_KEYS = [
+    # 武汉市各区
+    '武汉', '汉阳', '武昌', '洪山', '江岸', '江汉', '硚口', '东西湖', 
+    '黄陂', '新洲', '蔡甸', '江夏', '经开', '东湖', '光谷',
+    # 湖北省各地市
+    '湖北', '黄石', '鄂州', '黄冈', '孝感', '咸宁', '仙桃', '天门', 
+    '潜江', '恩施', '十堰', '襄阳', '随州', '荆门', '荆州', '宜昌',
+]
+
+# 本地知名学校/机构（允许例外）
+LOCAL_SCHOOLS = [
+    '华师一附中', '华中师大一附中', '华师附中', '华一寄宿',
+    '武汉外国语学校', '外校', '武汉二中', '武汉六中', '武汉三中',
+    '武汉十一中', '省实验', '水果湖', '武钢三中', '开发区',
+    '东湖新技术', '葛店', '阳逻',
 ]
 
 # 需要直接排除的模式（标题匹配即丢弃）
@@ -44,6 +62,17 @@ BLOCK_PATTERNS = [
 UNIVERSITY_EMPLOYER_KEYS = ['大学', '学院']
 
 
+def is_local_area(title):
+    """判断是否为武汉及周边地市的招聘"""
+    for key in LOCAL_AREA_KEYS:
+        if key in title:
+            return True
+    for school in LOCAL_SCHOOLS:
+        if school in title:
+            return True
+    return False
+
+
 def should_keep_article(title):
     """
     判断是否为中小学/公立学校教师招聘信息。
@@ -52,8 +81,9 @@ def should_keep_article(title):
     过滤优先级：
     1. 先检查排除模式（BLOCK_PATTERNS）- 直接丢弃
     2. 再检查是否为高校作为雇主的招聘 - 丢弃
-    3. 最后检查保留模式（KEEP_PATTERNS）- 保留
-    4. 默认保留
+    3. 检查地区限制 - 非本地则丢弃
+    4. 最后检查保留模式（KEEP_PATTERNS）- 保留
+    5. 默认保留
     """
     if not title:
         return False
@@ -76,12 +106,16 @@ def should_keep_article(title):
             if key in stripped:
                 return False
 
-    # 3. 再检查保留模式
+    # 3. 检查地区限制 - 必须是本地招聘
+    if not is_local_area(title):
+        return False
+
+    # 4. 再检查保留模式
     for pattern in KEEP_PATTERNS:
         if pattern in title:
             return True
 
-    # 4. 默认保留
+    # 5. 默认保留（已通过地区检查的本地内容）
     return True
 
 
