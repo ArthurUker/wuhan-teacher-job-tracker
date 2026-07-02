@@ -5,6 +5,11 @@ let activeSource = ''; // 当前选中的来源，空字符串表示"所有"
 // 留空则只做本地数据刷新，不触发爬虫
 const TRIGGER_WORKER_URL = '';
 
+// Worker 鉴权 Token（如果 Worker 配置了 AUTH_TOKEN 鉴权，此处需填写对应 Token）
+// ⚠️ 注意：前端是纯静态页面，此 Token 会被任何访问者看到。
+// 建议：使用权限最小的 Token，或仅用于防止扫描式滥用。
+const AUTH_TOKEN = '';
+
 async function loadJobs() {
     const jobList = document.getElementById('jobList');
     const refreshBtn = document.querySelector('button[onclick="loadJobs()"]');
@@ -138,7 +143,19 @@ async function triggerCrawlAndRefresh() {
 
     try {
         // 1. 调用 Worker 代理触发 Actions
-        const resp = await fetch(TRIGGER_WORKER_URL, { method: 'POST' });
+        const fetchOptions = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        };
+        
+        // 如果配置了 AUTH_TOKEN，添加鉴权头
+        if (AUTH_TOKEN) {
+            fetchOptions.headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
+        }
+        
+        const resp = await fetch(TRIGGER_WORKER_URL, fetchOptions);
         const result = await resp.json();
 
         if (!resp.ok && !result.success) {
