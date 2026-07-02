@@ -1,5 +1,5 @@
 # workers/wrangler.toml
-name = "wuhan-crawl-trigger"
+name = "wuhan-teacher-job-tracker"
 main = "trigger-crawl.js"
 compatibility_date = "2026-07-01"
 
