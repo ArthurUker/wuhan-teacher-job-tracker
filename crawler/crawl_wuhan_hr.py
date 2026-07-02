@@ -74,11 +74,25 @@ def crawl_wuhan_hr():
                     print(f"正在爬取栏目[{name}]: {cu}")
                     sub_html = _render_page(context, cu, wait_ms=2500)
                     sub_soup = BeautifulSoup(sub_html, 'html.parser')
-                    links = sub_soup.find_all('a')
+
+                    # 只取内容列表区的链接
+                    content_area = (
+                        sub_soup.find('div', class_='list') or
+                        sub_soup.find('ul', class_='news_list') or
+                        sub_soup.find('div', class_='content') or
+                        sub_soup.find('div', id='content') or
+                        sub_soup
+                    )
+                    links = content_area.find_all('a')
+
+                    print(f"  栏目页内容区共解析到 {len(links)} 个链接")
 
                     for link in links:
                         title = link.get_text(strip=True)
                         href = link.get('href', '')
+
+                        if not title or len(title) < 5:
+                            continue
 
                         if not is_valid_job_posting(title):
                             continue

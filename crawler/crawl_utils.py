@@ -14,37 +14,34 @@ def is_valid_job_posting(title):
     """
     # 必须包含的关键词（招聘相关）
     required_keywords = ['招聘', '招录', '招考', '引进', '选调']
-    
-    # 排除的关键词（非招聘信息）
-    exclude_keywords = [
-        '成绩公布', '成绩查询', '考试成绩',
-        '公示名单', '拟聘用', '拟录用', '录取',
-        '培训', '会议', '温馨提示',
-        '投诉', '举报', '师德', '师风',
-        '体检', '考察', '面试结果', '面试公告',
-        '补充公告', '更正', '调整',
-        '教师资格', '认定',
-        '成绩公告', '递补', '加分', '核减',
-        '综合成绩', '面试成绩',
-        '资格复审', '面试资格',
-        '预录', '拟聘', '公示',
-        '代课教师', '临聘', '合同制',
-    ]
-    
+
     # 检查是否包含必需关键词
     if not any(keyword in title for keyword in required_keywords):
         return False
-    
-    # 检查是否包含排除关键词
-    for exclude in exclude_keywords:
-        if exclude in title:
-            return False
-    
-    # 必须是教师或编制类招聘
-    job_keywords = ['教师', '编制', '事业单位', '教育系统', '学校', '人才']
+
+    # 必须是教师或编制类招聘（放宽：有招聘关键词即保留，不再强制二次过滤）
+    job_keywords = ['教师', '编制', '事业单位', '教育系统', '学校', '人才', '教师']
     if not any(keyword in title for keyword in job_keywords):
         return False
-    
+
+    # 排除：标题以这些词开头才是纯非招聘类公告（避免误杀含这些词的正常招聘标题）
+    exclude_prefixes = [
+        '成绩公布', '成绩查询', '考试成绩查询',
+        '拟聘用公示', '拟录用公示', '录取名单',
+        '师德', '师风',
+        '教师资格认定',
+        '代课教师', '临聘教师', '合同制教师',
+    ]
+    for prefix in exclude_prefixes:
+        if title.startswith(prefix):
+            return False
+
+    # 排除：仅含这些词且无招聘实质（如纯体检通知、纯培训通知）
+    pure_exclude_keywords = ['培训通知', '会议通知', '温馨提示', '投诉举报']
+    for exc in pure_exclude_keywords:
+        if exc in title:
+            return False
+
     return True
 
 def is_recent_date(date_str, title='', months=6):

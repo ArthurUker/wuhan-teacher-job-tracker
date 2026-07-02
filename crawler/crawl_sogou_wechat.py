@@ -1,269 +1,170 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-搜狗微信搜索爬虫
-使用 Playwright 模拟浏览器搜索微信公众号文章中的教师招聘信息
+搜狗微信搜索爬虫 - 搜索公众号文章
 """
+
+import requests
+from bs4 import BeautifulSoup
 import time
-import random
 import re
-from datetime import datetime, timedelta
-from urllib.parse import quote
-from playwright.sync_api import sync_playwright
 
-# 搜索关键词（每个城市一个关键词）
-SEARCH_KEYWORDS = [
-    "武汉 教师招聘",
-    "湖北 教师招聘",
-    "黄石 教师招聘",
-    "鄂州 教师招聘",
-    "黄冈 教师招聘",
-    "孝感 教师招聘",
-]
-
-# 需要排除的关键词（非招聘类/广告类）
-EXCLUDE_TITLES = [
-    '成绩', '体检', '面试名单', '拟聘用', '公示',
-    '报名入口', '准考证', '考场', '核减',
-    '递补', '资格复审', '面试成绩', '综合成绩',
-    '培训', '会议',
-]
-
-# 需要排除的来源（广告号/营销号/非官方渠道）
-EXCLUDE_SOURCES = [
-    '南宁租房宝',  # 与教师招聘无关
-    '租房',
-]
-
-WEIXIN_SOGOU_BASE = 'https://weixin.sogou.com'
-
-
-def create_browser_context(playwright):
-    """创建浏览器上下文，模拟真实浏览器"""
-    browser = playwright.chromium.launch(headless=True)
-    ctx = browser.new_context(
-        viewport={'width': 1920, 'height': 1080},
-        user_agent=(
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/120.0.0.0 Safari/537.36'
-        ),
-        locale='zh-CN',
-    )
-    return browser, ctx
-
-
-def parse_wechat_time(date_text):
+def crawl_sogou_wechat(keyword="武汉教师招聘", max_pages=2):
     """
-    解析搜狗微信搜索中的时间格式
-    支持: "2026-6-24", "4小时前", "2天前", "2026-06-24"
+    爬取搜狗微信搜索结果
     """
-    date_text = date_text.strip()
-
-    # 格式: "X小时前"
-    m = re.match(r'(\d+)小时前', date_text)
-    if m:
-        hours = int(m.group(1))
-        dt = datetime.now() - timedelta(hours=hours)
-        return dt.strftime('%Y-%m-%d')
-
-    # 格式: "X天前"
-    m = re.match(r'(\d+)天前', date_text)
-    if m:
-        days = int(m.group(1))
-        dt = datetime.now() - timedelta(days=days)
-        return dt.strftime('%Y-%m-%d')
-
-    # 格式: "X分钟前" -> 当作今天
-    if '分钟前' in date_text:
-        return datetime.now().strftime('%Y-%m-%d')
-
-    # 格式: "昨天"
-    if '昨天' in date_text:
-        dt = datetime.now() - timedelta(days=1)
-        return dt.strftime('%Y-%m-%d')
-
-    # 格式: "2026-6-24" 或 "2026-06-24"
-    m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2})', date_text)
-    if m:
-        y, mon, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        # 验证日期合法性
-        if 2020 <= y <= 2030 and 1 <= mon <= 12 and 1 <= d <= 31:
-            return f'{y}-{mon:02d}-{d:02d}'
-
-    return '未知日期'
-
-
-def is_relevant_job(title, summary=''):
-    """判断是否为教师招聘相关信息"""
-    text = title + ' ' + summary
-
-    # 必须包含招聘相关词
-    recruit_words = ['招聘', '招考', '引进', '教师', '老师']
-    if not any(w in text for w in recruit_words):
-        return False
-
-    # 排除非招聘内容
-    for kw in EXCLUDE_TITLES:
-        if kw in title:
-            return False
-
-    return True
-
-
-def is_within_months(date_str, months=6):
-    """判断日期是否在指定月数内"""
-    if date_str == '未知日期':
-        return True  # 日期未知时保留，避免误杀近期公众号文章（搜狗结果本身按时间排序）
-
-    try:
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-        cutoff = datetime.now() - timedelta(days=months * 30)
-        return date_obj >= cutoff
-    except:
-        return False
-
-
-def crawl_sogou_wechat():
-    """爬取搜狗微信搜索结果"""
-    jobs = []
-    seen = set()  # 用于去重
-
-    with sync_playwright() as p:
-        browser, ctx = create_browser_context(p)
-
-        for keyword in SEARCH_KEYWORDS:
-            try:
-                print(f'正在搜索微信公众号: "{keyword}"')
-                page = ctx.new_page()
-
-                # 关键：先访问搜狗首页
-                page.goto('https://www.sogou.com/', timeout=15000)
-                time.sleep(random.uniform(0.5, 1.0))
-
-                # 再访问微信搜索
-                encoded = quote(keyword)
-                search_url = f'{WEIXIN_SOGOU_BASE}/weixin?type=2&query={encoded}'
-                page.goto(search_url, timeout=15000)
-                time.sleep(random.uniform(1.5, 2.5))
-
-                # 检查是否被反爬
-                content = page.content()
-                if '验证码' in content or 'antispider' in content.lower():
-                    print(f'  ⚠️ 触发反爬，跳过关键词: {keyword}')
-                    page.close()
-                    time.sleep(random.uniform(5, 10))
-                    continue
-
-                # 提取文章列表
-                items = page.query_selector_all('ul.news-list2 li, ul.news-list li')
-                print(f'  找到 {len(items)} 个结果')
-
-                for item in items:
-                    try:
-                        # 提取标题
-                        title_el = item.query_selector('h3 a, h3, .tit a')
-                        if not title_el:
-                            continue
-                        title = title_el.inner_text().strip()
-
-                        # 提取链接
-                        link_el = item.query_selector('a[data-z="art"]')
-                        if not link_el:
-                            link_el = title_el
-                        href = link_el.get_attribute('href', '')
-                        if href.startswith('/'):
-                            url = WEIXIN_SOGOU_BASE + href
-                        else:
-                            url = href
-
-                        # 提取完整文本用于解析来源和日期
-                        full_text = item.inner_text().strip()
-                        lines = full_text.split('\n')
-
-                        # 最后一行通常包含来源和日期
-                        last_line = ''
-                        for line in reversed(lines):
-                            line = line.strip()
-                            if line:
-                                last_line = line
-                                break
-
-                        # 解析来源和日期: "湖北敏捷就业资讯2026-6-24"
-                        date_match = re.search(
-                            r'(\d{4}-\d{1,2}-\d{1,2}|\d+小时前|\d+天前|\d+分钟前|昨天)',
-                            last_line
-                        )
-
-                        date_str = '未知日期'
-                        source = '微信公众号'
-
-                        if date_match:
-                            date_str = parse_wechat_time(date_match.group(1))
-                            # 日期之前的部分是来源
-                            source = last_line[:date_match.start()].strip()
-                            if not source or len(source) > 20:
-                                source = '微信公众号'
-                        else:
-                            # 可能最后一行就是公众号名字，没有日期
-                            if len(last_line) < 20:
-                                source = last_line
-                            else:
-                                source = '微信公众号'
-
-                        # 过滤
-                        if not is_relevant_job(title):
-                            continue
-
-                        if any(kw in source for kw in EXCLUDE_SOURCES):
-                            continue
-
-                        if not is_within_months(date_str, months=6):
-                            continue
-
-                        # 去重
-                        dedup_key = title[:40]
-                        if dedup_key in seen:
-                            continue
-                        seen.add(dedup_key)
-
-                        # 提取摘要
-                        summary = ''
-                        summary_lines = [
-                            l.strip() for l in lines[1:] if l.strip()
-                            and l.strip() != source + (date_match.group(0) if date_match else '')
-                        ]
-                        if summary_lines:
-                            summary = summary_lines[0][:100]
-
-                        job = {
-                            'title': title,
-                            'url': url,
-                            'date': date_str,
-                            'source': f'微信公众号({source})',
-                            'type': '公众号文章',
-                            'summary': summary,
-                        }
-                        jobs.append(job)
-                        print(f'  ✓ {title[:50]} | {date_str} | {source}')
-
-                    except Exception as e:
+    base_url = "https://weixin.sogou.com/weixin"
+    articles = []
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://weixin.sogou.com/',
+        'Connection': 'keep-alive',
+    }
+    
+    for page in range(1, max_pages + 1):
+        try:
+            params = {
+                'type': 2,  # 2=文章搜索
+                'query': keyword,
+                'page': page
+            }
+            
+            print(f"正在爬取第 {page} 页: {keyword}")
+            
+            response = requests.get(base_url, params=params, headers=headers, timeout=15)
+            
+            if response.status_code != 200:
+                print(f"  请求失败，状态码: {response.status_code}")
+                break
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 查找文章列表
+            article_divs = soup.find_all('div', class_='txt-box')
+            
+            if not article_divs:
+                print(f"  未找到文章，可能已到最后一页")
+                break
+            
+            print(f"  找到 {len(article_divs)} 篇文章")
+            
+            for div in article_divs:
+                try:
+                    # 提取标题和链接
+                    title_link = div.find('a')
+                    if not title_link:
                         continue
+                    
+                    title = title_link.get_text(strip=True)
+                    sogou_url = title_link.get('href', '')
+                    
+                    # 构建完整URL
+                    if sogou_url.startswith('/'):
+                        sogou_url = 'https://weixin.sogou.com' + sogou_url
+                    
+                    # 提取公众号名称 - 尝试多种方法
+                    account_name = '未知公众号'
+                    # 方法1: 查找 span.all-time-y2
+                    account_elem = div.find('span', class_='all-time-y2')
+                    if account_elem:
+                        account_name = account_elem.get_text(strip=True)
+                    else:
+                        # 方法2: 查找包含公众号名称的span
+                        for span in div.find_all('span'):
+                            text = span.get_text(strip=True)
+                            if text and '湖北' in text or '武汉' in text or '教育' in text:
+                                account_name = text
+                                break
+                    
+                    # 提取发布时间 - 查找时间相关的文本
+                    publish_time = '未知时间'
+                    time_text = div.get_text()
+                    # 匹配时间格式：2024-01-01 或 1天前 或 2024年01月01日
+                    time_patterns = [
+                        r'(\d{4}-\d{2}-\d{2})',
+                        r'(\d{4}年\d{2}月\d{2}日)',
+                        r'(\d+天前)',
+                        r'(\d+小时前)',
+                    ]
+                    for pattern in time_patterns:
+                        match = re.search(pattern, time_text)
+                        if match:
+                            publish_time = match.group(1)
+                            break
+                    
+                    # 提取摘要
+                    summary = ''
+                    summary_elem = div.find('p')
+                    if summary_elem:
+                        summary = summary_elem.get_text(strip=True)[:200]  # 限制长度
+                    
+                    article = {
+                        'title': title,
+                        'url': sogou_url,  # 搜狗重定向链接
+                        'account_name': account_name,
+                        'publish_time': publish_time,
+                        'summary': summary,
+                        'source': '微信公众号',
+                        'type': '公众号文章',
+                        'keyword': keyword,
+                        'city': '武汉',
+                        'date': publish_time if publish_time != '未知时间' else '未知日期'
+                    }
+                    
+                    articles.append(article)
+                    
+                except Exception as e:
+                    print(f"  解析单篇文章时出错: {e}")
+                    continue
+            
+            # 礼貌延迟
+            time.sleep(3)
+            
+        except Exception as e:
+            print(f"爬取第 {page} 页时出错: {e}")
+            break
+    
+    print(f"\n搜狗微信搜索完成，共找到 {len(articles)} 篇文章")
+    return articles
 
-                page.close()
-                # 关键词之间随机延迟
-                delay = random.uniform(3, 6)
-                print(f'  等待 {delay:.1f} 秒后搜索下一个关键词...')
-                time.sleep(delay)
 
-            except Exception as e:
-                print(f'  搜索关键词 "{keyword}" 失败: {e}')
-
-        browser.close()
-
-    print(f'\n搜狗微信搜索完成，共找到 {len(jobs)} 条有效信息')
-    return jobs
+def main():
+    """主函数 - 测试爬虫"""
+    print("=" * 60)
+    print("测试搜狗微信搜索爬虫")
+    print("=" * 60)
+    
+    # 搜索多个关键词
+    keywords = ["武汉教师招聘", "湖北教师招聘"]
+    all_articles = []
+    
+    for keyword in keywords:
+        articles = crawl_sogou_wechat(keyword, max_pages=1)
+        all_articles.extend(articles)
+        time.sleep(5)  # 不同关键词之间延迟更长
+    
+    # 保存结果
+    import json
+    output_file = '../data/wechat_articles.json'
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(all_articles, f, ensure_ascii=False, indent=2)
+    
+    print(f"\n所有文章已保存到: {output_file}")
+    print(f"总共有 {len(all_articles)} 篇公众号文章")
+    
+    # 显示前3篇
+    if all_articles:
+        print("\n前3篇文章:")
+        for i, article in enumerate(all_articles[:3], 1):
+            print(f"\n{i}. {article['title']}")
+            print(f"   公众号: {article['account_name']}")
+            print(f"   时间: {article['publish_time']}")
+            print(f"   摘要: {article['summary'][:50]}...")
 
 
 if __name__ == '__main__':
-    jobs = crawl_sogou_wechat()
-    for j in jobs:
-        print(f'  [{j["date"]}] {j["title"][:60]} | {j["source"]}')
+    main()

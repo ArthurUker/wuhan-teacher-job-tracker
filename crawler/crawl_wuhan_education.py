@@ -57,15 +57,30 @@ def crawl_wuhan_education():
         html = _render_with_playwright(target_url)
 
         soup = BeautifulSoup(html, 'html.parser')
-        links = soup.find_all('a')
 
-        print(f"  页面渲染完成，共解析到 {len(links)} 个链接")
+        # 只取内容列表区的链接，避免遍历全页导航/页脚等无关 <a>
+        content_area = (
+            soup.find('div', class_='list') or
+            soup.find('div', class_='news-list') or
+            soup.find('ul', class_='news_list') or
+            soup.find('div', class_='content') or
+            soup.find('div', id='content') or
+            soup
+        )
+        links = content_area.find_all('a')
 
+        print(f"  页面渲染完成，内容区共解析到 {len(links)} 个链接")
+
+        filtered_count = 0
         for link in links:
             title = link.get_text(strip=True)
             href = link.get('href', '')
 
+            if not title or len(title) < 5:
+                continue
+
             if not is_valid_job_posting(title):
+                filtered_count += 1
                 continue
 
             full_url = build_full_url(href, base_url, target_url)
@@ -89,6 +104,9 @@ def crawl_wuhan_education():
             }
             jobs.append(job)
             print(f"✓ 发现招聘信息: {title} ({date_str})")
+
+        if filtered_count > 0:
+            print(f"  注：{filtered_count} 个链接被过滤（非招聘信息）")
 
         print(f"\n武汉市教育局爬取完成，共找到 {len(jobs)} 条有效招聘信息")
 
