@@ -69,12 +69,9 @@ function selectSource(source) {
 }
 
 function filterJobs() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const excludeUniv = document.getElementById('excludeUniversity').checked;
     
     let filtered = allJobs.filter(job => {
-        const matchSearch = job.title.toLowerCase().includes(searchTerm) || 
-                          job.source.toLowerCase().includes(searchTerm);
         const matchSource = !activeSource || job.source === activeSource;
         
         // 排除高校招聘（高校作为雇主招教员）
@@ -83,7 +80,7 @@ function filterJobs() {
             matchUniv = !isUniversityRecruitment(job.title);
         }
         
-        return matchSearch && matchSource && matchUniv;
+        return matchSource && matchUniv;
     });
     
     displayJobs(filtered);
