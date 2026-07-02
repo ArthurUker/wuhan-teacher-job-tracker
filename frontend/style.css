@@ -322,31 +322,188 @@ button:hover {
     font-size: 1.1em;
 }
 
+/* ========== 分页与视图控制 ========== */
+.pagination-controls {
+    padding: 15px 30px;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.per-page-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #555;
+}
+
+.per-page-selector select {
+    padding: 6px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 5px;
+    background: #e0e0e0;
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.view-btn {
+    padding: 6px 16px;
+    background: transparent;
+    color: #666;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.view-btn.active {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* ========== 分页导航 ========== */
+.pagination-nav {
+    padding: 20px 30px;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-top: 1px solid #e0e0e0;
+}
+
+.page-btn {
+    padding: 6px 12px;
+    background: white;
+    color: #555;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 36px;
+    text-align: center;
+}
+
+.page-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.page-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-info {
+    font-size: 14px;
+    color: #888;
+    margin: 0 8px;
+}
+
+/* ========== 列表式视图 ========== */
+.job-list.list-view {
+    padding: 15px 30px;
+}
+
+.job-item.list-view {
+    padding: 12px 20px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.job-item.list-view .job-header {
+    flex: 1;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.job-item.list-view .job-title {
+    font-size: 1em;
+    flex: 1;
+    margin-right: 0;
+}
+
+.job-item.list-view .job-source {
+    font-size: 0.8em;
+    padding: 3px 10px;
+    flex-shrink: 0;
+}
+
+.job-item.list-view .job-meta {
+    flex-shrink: 0;
+    font-size: 0.85em;
+}
+
+.job-item.list-view .job-deadline,
+.job-item.list-view .job-account {
+    display: none;
+}
+
+/* ========== 卡片自适应 ========== */
+.job-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    padding: 30px;
+}
+
+.job-list.list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 响应式 */
 @media (max-width: 768px) {
-    header h1 {
-        font-size: 1.8em;
-    }
-    
-    .controls {
+    .pagination-controls {
         flex-direction: column;
-    }
-    
-    #searchInput {
-        min-width: 100%;
+        align-items: stretch;
     }
 
-    .source-cards {
-        padding: 12px 15px;
-        gap: 8px;
+    .view-toggle {
+        align-self: flex-end;
     }
 
-    .source-card {
-        padding: 6px 14px;
-        font-size: 13px;
+    .job-list {
+        grid-template-columns: 1fr;
+        padding: 15px;
     }
-    
-    .job-header {
-        flex-direction: column;
-        gap: 10px;
+
+    .pagination-nav {
+        padding: 15px;
+    }
+}
+
+@media (min-width: 1200px) {
+    .job-list:not(.list-view) {
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     }
 }

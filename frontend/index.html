@@ -30,9 +30,29 @@
             <span id="lastUpdate">最后更新: --</span>
         </div>
 
+        <!-- 分页与视图控制 -->
+        <div class="pagination-controls">
+            <div class="per-page-selector">
+                <label>每页显示：</label>
+                <select id="perPage" onchange="changePerPage()">
+                    <option value="10">10 条</option>
+                    <option value="20" selected>20 条</option>
+                    <option value="50">50 条</option>
+                    <option value="100">100 条</option>
+                </select>
+            </div>
+            <div class="view-toggle">
+                <button id="cardViewBtn" class="view-btn active" onclick="switchView('card')">☷ 卡片</button>
+                <button id="listViewBtn" class="view-btn" onclick="switchView('list')">☰ 列表</button>
+            </div>
+        </div>
+
         <div id="jobList" class="job-list">
             <p class="loading">正在加载数据...</p>
         </div>
+
+        <!-- 分页导航 -->
+        <div class="pagination-nav" id="paginationNav"></div>
     </div>
 
     <script src="app.js"></script>
