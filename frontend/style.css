@@ -71,6 +71,41 @@ header h1 {
     min-width: 200px;
 }
 
+/* 来源筛选卡片 */
+.source-cards {
+    padding: 15px 30px;
+    background: #f8f9fa;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.source-card {
+    padding: 8px 18px;
+    border: 2px solid #e0e0e0;
+    border-radius: 20px;
+    font-size: 14px;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    user-select: none;
+    white-space: nowrap;
+    background: white;
+}
+
+.source-card:hover {
+    border-color: #667eea;
+    color: #667eea;
+    transform: translateY(-1px);
+}
+
+.source-card.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 3px 12px rgba(102, 126, 234, 0.35);
+}
+
 button {
     padding: 12px 30px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -182,6 +217,16 @@ button:hover {
     
     #searchInput {
         min-width: 100%;
+    }
+
+    .source-cards {
+        padding: 12px 15px;
+        gap: 8px;
+    }
+
+    .source-card {
+        padding: 6px 14px;
+        font-size: 13px;
     }
     
     .job-header {

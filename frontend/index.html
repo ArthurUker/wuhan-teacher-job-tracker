@@ -15,10 +15,12 @@
 
         <div class="controls">
             <input type="text" id="searchInput" placeholder="搜索招聘信息..." oninput="filterJobs()">
-            <select id="sourceFilter" onchange="filterJobs()">
-                <option value="">所有来源</option>
-            </select>
             <button onclick="loadJobs()">🔄 刷新数据</button>
+        </div>
+
+        <!-- 来源筛选卡片 -->
+        <div class="source-cards" id="sourceCards">
+            <!-- JS 动态生成 -->
         </div>
 
         <div class="stats">

@@ -1,4 +1,5 @@
 let allJobs = [];
+let activeSource = ''; // 当前选中的来源，空字符串表示"所有"
 
 async function loadJobs() {
     const jobList = document.getElementById('jobList');
@@ -10,18 +11,8 @@ async function loadJobs() {
 
         document.getElementById('totalCount').textContent = `共 ${allJobs.length} 条信息`;
 
-        // 动态生成数据源下拉选项
-        const sourceFilter = document.getElementById('sourceFilter');
-        const currentVal = sourceFilter.value;
-        const sources = [...new Set(allJobs.map(j => j.source))].sort();
-        sourceFilter.innerHTML = '<option value="">所有来源</option>';
-        for (const s of sources) {
-            const opt = document.createElement('option');
-            opt.value = s;
-            opt.textContent = s;
-            if (s === currentVal) opt.selected = true;
-            sourceFilter.appendChild(opt);
-        }
+        // 动态生成来源筛选卡片
+        renderSourceCards();
 
         const now = new Date();
         document.getElementById('lastUpdate').textContent =
@@ -34,14 +25,39 @@ async function loadJobs() {
     }
 }
 
+function renderSourceCards() {
+    const container = document.getElementById('sourceCards');
+    const sources = [...new Set(allJobs.map(j => j.source))].sort();
+    // "所有来源" + 各来源卡片
+    let html = '';
+    
+    // "所有来源" 卡片
+    html += `<div class="source-card ${activeSource === '' ? 'active' : ''}" onclick="selectSource('')">✓ 所有来源</div>`;
+    
+    for (const s of sources) {
+        // 统计该来源的数量
+        const count = allJobs.filter(j => j.source === s).length;
+        html += `<div class="source-card ${activeSource === s ? 'active' : ''}" onclick="selectSource('${s}')">${s} (${count})</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function selectSource(source) {
+    activeSource = source;
+    // 更新卡片选中状态
+    document.querySelectorAll('.source-card').forEach(card => {
+        card.classList.toggle('active', card.textContent.includes(source ? source : '所有来源'));
+    });
+    filterJobs();
+}
+
 function filterJobs() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const sourceFilter = document.getElementById('sourceFilter').value;
     
     let filtered = allJobs.filter(job => {
         const matchSearch = job.title.toLowerCase().includes(searchTerm) || 
                           job.source.toLowerCase().includes(searchTerm);
-        const matchSource = !sourceFilter || job.source === sourceFilter;
+        const matchSource = !activeSource || job.source === activeSource;
         return matchSearch && matchSource;
     });
     
