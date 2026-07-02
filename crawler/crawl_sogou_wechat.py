@@ -53,30 +53,41 @@ def should_keep_article(title):
     """
     判断是否为中小学/公立学校教师招聘信息。
     返回 True 表示保留，False 表示丢弃。
-    """
-    # 先检查保留模式
-    for pattern in KEEP_PATTERNS:
-        if pattern in title:
-            return True
 
-    # 再检查排除模式（正则）
+    过滤优先级：
+    1. 先检查排除模式（BLOCK_PATTERNS）- 直接丢弃
+    2. 再检查是否为高校作为雇主的招聘 - 丢弃
+    3. 最后检查保留模式（KEEP_PATTERNS）- 保留
+    4. 默认保留
+    """
+    if not title:
+        return False
+
+    # 1. 先检查排除模式（正则）- 匹配即丢弃
     for pattern in BLOCK_PATTERNS:
         if re.search(pattern, title):
             return False
 
-    # 检查是否为高校作为雇主的招聘
-    # 找所有 "招聘" 的位置，检查每个位置前面是否有大学/学院
+    # 2. 检查是否为高校作为雇主的招聘
+    # 找所有 "招聘" 的位置，检查每个位置前面是否有大学/学院（且不是搜索关键词前缀）
     recruit_positions = [m.start() for m in re.finditer('招聘', title)]
     for recruit_idx in recruit_positions:
         prefix = title[:recruit_idx]
-        # 排除 "XX教师招聘" 这种情况（搜索关键词前缀）
-        if '教师' in prefix[-5:] or '武汉教师' in prefix or '湖北教师' in prefix:
-            continue
+        # 去掉搜索关键词前缀（武汉教师/湖北教师等），检查剩余部分是否包含大学/学院
+        stripped = prefix
+        for prefix_keyword in ['武汉教师', '湖北教师', '黄石教师', '鄂州教师', 
+                               '孝感教师', '黄冈教师', '咸宁教师', '武汉事业单位']:
+            stripped = stripped.replace(prefix_keyword, '')
         for key in UNIVERSITY_EMPLOYER_KEYS:
-            if key in prefix:
+            if key in stripped:
                 return False
 
-    # 默认保留
+    # 3. 再检查保留模式
+    for pattern in KEEP_PATTERNS:
+        if pattern in title:
+            return True
+
+    # 4. 默认保留
     return True
 
 
