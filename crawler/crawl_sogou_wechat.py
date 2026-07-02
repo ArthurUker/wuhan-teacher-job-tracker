@@ -26,6 +26,11 @@ BLOCK_PATTERNS = [
     '职业学院', '职业技术学院', '技工学校',
     '辅导员', '博士后', '博士研究生', '硕士研究生',
     '人才引进.*高校', '高校.*招聘.*教师',
+    # 高校作为雇主的招聘（大学/学院 + 第X批/次/轮 + 招聘）
+    r'.*大学.*第\d+.*[批次轮次].*招聘',
+    r'.*学院.*第\d+.*[批次轮次].*招聘',
+    r'.*大学.*公开招聘.*公告',
+    r'.*学院.*公开招聘.*公告',
     # 考试资料/真题/试题（非招聘公告）
     '真题', '试题', '试卷', '题库', '练习题',
     '历年真题', '模拟题', '押题',
@@ -54,15 +59,19 @@ def should_keep_article(title):
         if pattern in title:
             return True
 
-    # 再检查排除模式
+    # 再检查排除模式（正则）
     for pattern in BLOCK_PATTERNS:
         if re.search(pattern, title):
             return False
 
     # 检查是否为高校作为雇主的招聘
-    recruit_idx = title.find('招聘')
-    if recruit_idx > 0:
+    # 找所有 "招聘" 的位置，检查每个位置前面是否有大学/学院
+    recruit_positions = [m.start() for m in re.finditer('招聘', title)]
+    for recruit_idx in recruit_positions:
         prefix = title[:recruit_idx]
+        # 排除 "XX教师招聘" 这种情况（搜索关键词前缀）
+        if '教师' in prefix[-5:] or '武汉教师' in prefix or '湖北教师' in prefix:
+            continue
         for key in UNIVERSITY_EMPLOYER_KEYS:
             if key in prefix:
                 return False
