@@ -70,16 +70,11 @@ function selectSource(source) {
 }
 
 function filterJobs() {
-    const excludeUniv = document.getElementById('excludeUniversity').checked;
-    
     let filtered = allJobs.filter(job => {
         const matchSource = !activeSource || job.source === activeSource;
         
-        // 排除高校招聘（高校作为雇主招教员）
-        let matchUniv = true;
-        if (excludeUniv) {
-            matchUniv = !isUniversityRecruitment(job.title);
-        }
+        // 始终排除高校招聘（高校作为雇主招教员）
+        const matchUniv = !isUniversityRecruitment(job.title);
         
         return matchSource && matchUniv;
     });
