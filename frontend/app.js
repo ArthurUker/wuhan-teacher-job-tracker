@@ -1,25 +1,18 @@
 let allJobs = [];
 let activeSource = ''; // 当前选中的来源，空字符串表示"所有"
+let isCrawling = false; // 爬虫是否正在运行中（防重复触发）
 
 // Cloudflare Worker 代理 URL（部署后替换为实际地址）
-// 留空则只做本地数据刷新，不触发爬虫
 const TRIGGER_WORKER_URL = 'https://wuhan-teacher-job-tracker.arthuruker.workers.dev';
 
-// Worker 鉴权 Token（如果 Worker 配置了 AUTH_TOKEN 鉴权，此处需填写对应 Token）
-// ⚠️ 注意：前端是纯静态页面，此 Token 会被任何访问者看到。
-// 建议：使用权限最小的 Token，或仅用于防止扫描式滥用。
+// Worker 鉴权 Token
 const AUTH_TOKEN = 'guorenkang';
 
+/** 刷新数据 - 只从本地加载 jobs.json，不触发爬虫 */
 async function loadJobs() {
+    if (isCrawling) return;
+
     const jobList = document.getElementById('jobList');
-    const refreshBtn = document.querySelector('button[onclick="loadJobs()"]');
-
-    // 如果有 Worker URL 且是用户主动点击（非首次加载），先触发爬虫
-    if (TRIGGER_WORKER_URL && refreshBtn && !refreshBtn._autoLoad) {
-        return triggerCrawlAndRefresh();
-    }
-    refreshBtn._autoLoad = true;
-
     jobList.innerHTML = '<p class="loading">正在加载数据...</p>';
 
     try {
@@ -28,7 +21,6 @@ async function loadJobs() {
 
         document.getElementById('totalCount').textContent = `共 ${allJobs.length} 条信息`;
 
-        // 动态生成来源筛选卡片
         renderSourceCards();
 
         const now = new Date();
@@ -40,6 +32,15 @@ async function loadJobs() {
         jobList.innerHTML = '<p class="no-results">加载数据失败，请确保已运行爬虫脚本生成数据。</p>';
         console.error('加载数据失败:', error);
     }
+}
+
+/** 触发爬虫 - 弹出确认框后才执行 */
+function requestTriggerCrawl() {
+    if (isCrawling) return;
+    if (!confirm('确定要重新抓取招聘信息吗？\n\n预计需要 2-5 分钟，期间不可重复触发。')) {
+        return;
+    }
+    triggerCrawlAndRefresh();
 }
 
 function renderSourceCards() {
@@ -134,12 +135,16 @@ window.addEventListener('DOMContentLoaded', loadJobs);
 let statusPollTimer = null;
 
 async function triggerCrawlAndRefresh() {
+    if (isCrawling) return;
+    isCrawling = true;
+
     const jobList = document.getElementById('jobList');
+    const crawlBtn = document.querySelector('button[onclick="requestTriggerCrawl()"]');
     const refreshBtn = document.querySelector('button[onclick="loadJobs()"]');
 
     jobList.innerHTML = '<p class="loading">⏳ 正在触发爬虫运行...</p>';
-    refreshBtn.disabled = true;
-    refreshBtn.textContent = '⏳ 触发中...';
+    if (crawlBtn) { crawlBtn.disabled = true; }
+    if (refreshBtn) { refreshBtn.disabled = true; }
 
     try {
         // 1. 调用 Worker 代理触发 Actions
@@ -180,6 +185,7 @@ async function triggerCrawlAndRefresh() {
                 return;
             }
             refreshBtn.textContent = `⏳ 爬取中 (${attempts * 15}s)...`;
+            if (crawlBtn) crawlBtn.disabled = true;
 
             try {
                 const checkResp = await fetch('../data/jobs.json?t=' + Date.now());
@@ -228,6 +234,12 @@ async function loadFreshData() {
         document.getElementById('lastUpdate').textContent =
             `最后更新: ${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
         filterJobs();
+        // 数据加载完成，恢复按钮
+        if (isCrawling) {
+            const statusEl = document.getElementById('crawlStatus');
+            if (statusEl) statusEl.textContent = '✅ 数据已更新！';
+            resetRefreshBtn();
+        }
     } catch (error) {
         jobList.innerHTML = '<p class="no-results">加载数据失败</p>';
     }
@@ -293,7 +305,13 @@ function startStatusPolling(runUrl) {
 }
 
 function resetRefreshBtn() {
+    isCrawling = false;
+    const crawlBtn = document.querySelector('button[onclick="requestTriggerCrawl()"]');
     const btn = document.querySelector('button[onclick="loadJobs()"]');
+    if (crawlBtn) {
+        crawlBtn.disabled = false;
+        crawlBtn.textContent = '🚀 重新抓取';
+    }
     if (btn) {
         btn.disabled = false;
         btn.textContent = '🔄 刷新数据';
