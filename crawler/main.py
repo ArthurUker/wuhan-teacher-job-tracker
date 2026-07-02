@@ -7,7 +7,7 @@
 import sys
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 添加爬虫目录到路径
 sys.path.insert(0, os.path.dirname(__file__))
@@ -136,7 +136,7 @@ def main():
     data_dir = os.path.join(os.path.dirname(__file__), '../data')
     os.makedirs(data_dir, exist_ok=True)
     output_file = os.path.join(data_dir, 'jobs.json')
-    
+
     existing_jobs = []
     if os.path.exists(output_file):
         try:
@@ -146,36 +146,79 @@ def main():
         except Exception as e:
             print(f"读取已有数据失败: {str(e)}，将从头开始")
             existing_jobs = []
-    
+
     # 合并已有数据和新爬取的数据
-    # 使用 (title, url) 作为唯一键去重，保留最新的
+    # 使用 (title, source) 作为唯一键去重，保留最新的
+    # 对于微信公众号，每次爬取 URL 可能变化，用此键可避免重复
     seen = {}
-    
-    # 先处理已有数据
+
+    # 先放入已有数据
     for job in existing_jobs:
-        key = (job['title'], job['url'])
+        key = (job['title'], job['source'])
         seen[key] = job
-    
-    # 再处理新数据（如果同一键已存在，新数据会覆盖旧数据）
+
+    # 再处理新数据（同名键会覆盖，新键会新增）
     new_count = 0
+    updated_count = 0
     for job in all_jobs:
-        key = (job['title'], job['url'])
+        key = (job['title'], job['source'])
         if key not in seen:
             new_count += 1
+        else:
+            # 已有记录，检查 URL 是否变化（如微信临时链接刷新）
+            existing = seen[key]
+            if existing.get('url') != job.get('url'):
+                updated_count += 1
         seen[key] = job
-    
+
     merged_jobs = list(seen.values())
-    
+
+    # ===== 过期清理 =====
+    # 非编制类：保留最近 6 个月；编制类：保留最近 12 个月
+    now = datetime.now()
+    cutoff_regular = now - timedelta(days=365)   # 编制类 12 个月
+    cutoff_other = now - timedelta(days=180)        # 非编制类 6 个月
+
+    expired_count = 0
+    kept_jobs = []
+    for job in merged_jobs:
+        date_str = job.get('date', '未知日期')
+        is_regular = '编制' in job.get('type', '')
+
+        if date_str == '未知日期':
+            # 未知日期的条目保留
+            kept_jobs.append(job)
+            continue
+
+        # 解析日期（支持 YYYY-MM-DD 和 YYYY-MM）
+        try:
+            if len(date_str) == 7:  # YYYY-MM
+                job_date = datetime.strptime(date_str + '-01', '%Y-%m-%d')
+            else:
+                job_date = datetime.strptime(date_str, '%Y-%m-%d')
+            cutoff = cutoff_regular if is_regular else cutoff_other
+            if job_date >= cutoff:
+                kept_jobs.append(job)
+            else:
+                expired_count += 1
+        except ValueError:
+            # 日期格式异常，保留
+            kept_jobs.append(job)
+
+    merged_jobs = kept_jobs
+    print(f"过期清理: 删除 {expired_count} 条过期数据")
+
     # 按日期排序
     merged_jobs.sort(key=lambda x: x['date'] if x['date'] != '未知日期' else '2000-01-01', reverse=True)
-    
+
     # 保存数据
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(merged_jobs, f, ensure_ascii=False, indent=2)
-    
+
     print(f"爬取完成！")
     print(f"本次爬取: {len(all_jobs)} 条")
     print(f"新增条目: {new_count} 条")
+    print(f"更新条目: {updated_count} 条（如链接刷新）")
     print(f"合并后共: {len(merged_jobs)} 条信息")
     print(f"数据已保存到: {output_file}")
     print("=" * 50)

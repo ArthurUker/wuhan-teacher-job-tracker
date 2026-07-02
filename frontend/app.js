@@ -182,30 +182,30 @@ function displayJobs(jobs) {
             accountHtml = `<div class="job-account" style="font-size:0.8em;color:#999;margin-top:4px;">📢 ${job.account_name}</div>`;
         }
 
-        // 微信公众号链接过期提示
+        // 微信公众号链接过期提示（仅非永久链接显示）
         let expiredHint = '';
         if (wechat) {
-            expiredHint = `<div class="job-expired-hint" style="font-size:0.78em;color:#e67e22;margin-top:4px;display:flex;align-items:center;gap:4px;">
-                ⚠️ 链接可能已失效 · 
-                <a href="#" onclick="event.stopPropagation();copyTitle('${job.title.replace(/'/g, "\\'")}');return false;" 
-                   style="color:#667eea;text-decoration:none;cursor:pointer;">复制标题到微信搜索</a>
-            </div>`;
+            const isPermanent = job.url && job.url.includes('mp.weixin.qq.com');
+            if (!isPermanent) {
+                expiredHint = `<div class="job-expired-hint" style="font-size:0.78em;color:#e67e22;margin-top:4px;display:flex;align-items:center;gap:6px;">
+                    ⚠️ 链接可能已失效
+                    <button class="copy-btn" onclick="event.stopPropagation();copyTitle('${job.title.replace(/'/g, "\\'")}');" title="复制标题，在微信中搜索文章">📋 复制标题</button>
+                </div>`;
+            }
             if (!accountHtml && job.account_name) {
                 accountHtml = `<div class="job-account" style="font-size:0.8em;color:#999;margin-top:4px;">📢 ${job.account_name}</div>`;
             }
         }
 
         const viewClass = currentView === 'list' ? ' list-view' : '';
-        const clickAction = wechat
-            ? `onclick="copyTitle('${job.title.replace(/'/g, "\\'")}')"`
-            : `onclick="window.open('${job.url}', '_blank')"`;
-        const cursorStyle = wechat ? 'style="cursor:pointer;"' : '';
+        const clickAction = `onclick="window.open('${job.url}', '_blank')"`;
+        const cursorStyle = 'style="cursor:pointer;"';
 
         return `
         <div class="job-item${viewClass}" ${clickAction} ${cursorStyle}>
             <div class="job-header">
                 <div class="job-title">${job.title}</div>
-                <div class="job-source">${job.source}${wechat ? ' <span style="font-size:0.8em;color:#e67e22">[链接可能失效]</span>' : ''}</div>
+                <div class="job-source">${job.source}${wechat && job.url && !job.url.includes('mp.weixin.qq.com') ? ' <span style="font-size:0.8em;color:#e67e22">[链接可能失效]</span>' : ''}</div>
             </div>
             <div class="job-meta">
                 <div class="job-date">${dateHtml}</div>

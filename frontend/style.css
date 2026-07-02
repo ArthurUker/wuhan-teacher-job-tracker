@@ -487,16 +487,16 @@ button:hover {
         flex-direction: column;
         align-items: stretch;
     }
-
+    
     .view-toggle {
         align-self: flex-end;
     }
-
+    
     .job-list {
         grid-template-columns: 1fr;
         padding: 15px;
     }
-
+    
     .pagination-nav {
         padding: 15px;
     }
@@ -506,4 +506,27 @@ button:hover {
     .job-list:not(.list-view) {
         grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     }
+}
+
+/* 复制标题按钮（微信文章） */
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #fff7e6;
+    border: 1px solid #ffd591;
+    border-radius: 6px;
+    font-size: 0.78em;
+    color: #e67e22;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.copy-btn:hover {
+    background: #ffe4b3;
+    border-color: #e67e22;
+}
+.copy-btn:active {
+    transform: scale(0.96);
 }
