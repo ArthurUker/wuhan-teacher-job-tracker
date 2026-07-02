@@ -132,30 +132,51 @@ def main():
     print()
     print("=" * 50)
     
-    # 去重
-    seen = set()
-    unique_jobs = []
-    
-    for job in all_jobs:
-        key = (job['title'], job['url'])
-        if key not in seen:
-            seen.add(key)
-            unique_jobs.append(job)
-    
-    # 按日期排序
-    unique_jobs.sort(key=lambda x: x['date'] if x['date'] != '未知日期' else '2000-01-01', reverse=True)
-    
-    # 保存数据
+    # 读取已有的数据（增量更新模式）
     data_dir = os.path.join(os.path.dirname(__file__), '../data')
     os.makedirs(data_dir, exist_ok=True)
     output_file = os.path.join(data_dir, 'jobs.json')
     
+    existing_jobs = []
+    if os.path.exists(output_file):
+        try:
+            with open(output_file, 'r', encoding='utf-8') as f:
+                existing_jobs = json.load(f)
+            print(f"读取已有数据: {len(existing_jobs)} 条")
+        except Exception as e:
+            print(f"读取已有数据失败: {str(e)}，将从头开始")
+            existing_jobs = []
+    
+    # 合并已有数据和新爬取的数据
+    # 使用 (title, url) 作为唯一键去重，保留最新的
+    seen = {}
+    
+    # 先处理已有数据
+    for job in existing_jobs:
+        key = (job['title'], job['url'])
+        seen[key] = job
+    
+    # 再处理新数据（如果同一键已存在，新数据会覆盖旧数据）
+    new_count = 0
+    for job in all_jobs:
+        key = (job['title'], job['url'])
+        if key not in seen:
+            new_count += 1
+        seen[key] = job
+    
+    merged_jobs = list(seen.values())
+    
+    # 按日期排序
+    merged_jobs.sort(key=lambda x: x['date'] if x['date'] != '未知日期' else '2000-01-01', reverse=True)
+    
+    # 保存数据
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(unique_jobs, f, ensure_ascii=False, indent=2)
+        json.dump(merged_jobs, f, ensure_ascii=False, indent=2)
     
     print(f"爬取完成！")
-    print(f"共爬取 {len(all_jobs)} 条信息")
-    print(f"去重后 {len(unique_jobs)} 条信息")
+    print(f"本次爬取: {len(all_jobs)} 条")
+    print(f"新增条目: {new_count} 条")
+    print(f"合并后共: {len(merged_jobs)} 条信息")
     print(f"数据已保存到: {output_file}")
     print("=" * 50)
 
