@@ -34,7 +34,7 @@ def crawl_sogou_wechat(keyword="武汉教师招聘", max_pages=2):
             
             print(f"正在爬取第 {page} 页: {keyword}")
             
-            response = requests.get(base_url, params=params, headers=headers, timeout=15)
+            response = requests.get(base_url, params=params, headers=headers, timeout=30)
             
             if response.status_code != 200:
                 print(f"  请求失败，状态码: {response.status_code}")

@@ -30,7 +30,6 @@ def crawl_xiaogan():
 
     try:
         print(f"正在爬取: {target_url}")
-        print("⚠️ 注意：该网站可能有WAF防护，正在尝试访问...")
 
         response = retry_request(target_url, headers=headers, timeout=30)
         response.encoding = 'utf-8'
@@ -41,11 +40,20 @@ def crawl_xiaogan():
 
         # 检查是否被WAF拦截
         if 'waf' in response.text.lower() or '防火墙' in response.text or '非法请求' in response.text:
-            print("⚠️ 警告：可能触发了WAF防护，尝试降低请求频率或添加更多请求头")
+            print("⚠️ 警告：可能触发了WAF防护，跳过该站点")
             return jobs
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        links = soup.find_all('a')
+
+        # 只取内容列表区的链接
+        content_area = (
+            soup.find('div', class_='list') or
+            soup.find('ul', class_='news_list') or
+            soup.find('div', class_='content') or
+            soup.find('div', id='content') or
+            soup
+        )
+        links = content_area.find_all('a')
 
         for link in links:
             title = link.get_text(strip=True)

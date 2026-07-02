@@ -37,7 +37,16 @@ def crawl_huanggang():
             return jobs
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        links = soup.find_all('a')
+
+        # 只取内容列表区的链接
+        content_area = (
+            soup.find('div', class_='list') or
+            soup.find('ul', class_='news_list') or
+            soup.find('div', class_='content') or
+            soup.find('div', id='content') or
+            soup
+        )
+        links = content_area.find_all('a')
 
         for link in links:
             title = link.get_text(strip=True)
