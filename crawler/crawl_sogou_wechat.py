@@ -324,6 +324,20 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             if sogou_url.startswith('/'):
                                 sogou_url = 'https://weixin.sogou.com' + sogou_url
 
+                            # 跟随搜狗跳转，获取微信文章原始URL（mp.weixin.qq.com）
+                            wechat_url = sogou_url
+                            try:
+                                resp = requests.head(sogou_url, headers=headers, timeout=10,
+                                                     allow_redirects=True)
+                                final_url = resp.url
+                                if 'mp.weixin.qq.com' in final_url:
+                                    wechat_url = final_url
+                                    print(f"    获取到原始链接: {final_url[:80]}...")
+                                else:
+                                    print(f"    跳转后仍非微信原文: {final_url[:60]}...，保留搜狗链接")
+                            except Exception as e:
+                                print(f"    跟踪跳转失败: {e}，保留搜狗链接")
+
                             # 提取公众号名称
                             account_name = '未知公众号'
                             account_elem = div.find('span', class_='all-time-y2')
@@ -379,7 +393,7 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
 
                             article = {
                                 'title': title,
-                                'url': sogou_url,
+                                'url': wechat_url,
                                 'account_name': account_name,
                                 'publish_time': publish_time,   # 公众号发布日期
                                 'title_date': title_date or '', # 标题中提取的日期

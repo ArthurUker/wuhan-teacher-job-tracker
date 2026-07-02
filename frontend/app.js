@@ -125,6 +125,21 @@ function displayCurrentPage() {
     displayJobs(pageJobs);
 }
 
+/** 判断是否为微信公众号来源（链接可能过期） */
+function isWechatSource(job) {
+    return job.source === '微信公众号' || (job.url && job.url.includes('sogou.com'));
+}
+
+/** 复制文本到剪贴板 */
+async function copyTitle(title) {
+    try {
+        await navigator.clipboard.writeText(title);
+        alert('已复制标题，请在微信中搜索：' + title);
+    } catch (e) {
+        prompt('请复制以下文字到微信中搜索：', title);
+    }
+}
+
 function displayJobs(jobs) {
     const jobList = document.getElementById('jobList');
     
@@ -141,6 +156,7 @@ function displayJobs(jobs) {
     }
     
     jobList.innerHTML = jobs.map(job => {
+        const wechat = isWechatSource(job);
         // 构建日期显示：标题日期 + 发布日期
         let dateHtml = '';
         if (job.title_date && job.publish_time && job.publish_time !== '未知日期') {
@@ -166,13 +182,30 @@ function displayJobs(jobs) {
             accountHtml = `<div class="job-account" style="font-size:0.8em;color:#999;margin-top:4px;">📢 ${job.account_name}</div>`;
         }
 
+        // 微信公众号链接过期提示
+        let expiredHint = '';
+        if (wechat) {
+            expiredHint = `<div class="job-expired-hint" style="font-size:0.78em;color:#e67e22;margin-top:4px;display:flex;align-items:center;gap:4px;">
+                ⚠️ 链接可能已失效 · 
+                <a href="#" onclick="event.stopPropagation();copyTitle('${job.title.replace(/'/g, "\\'")}');return false;" 
+                   style="color:#667eea;text-decoration:none;cursor:pointer;">复制标题到微信搜索</a>
+            </div>`;
+            if (!accountHtml && job.account_name) {
+                accountHtml = `<div class="job-account" style="font-size:0.8em;color:#999;margin-top:4px;">📢 ${job.account_name}</div>`;
+            }
+        }
+
         const viewClass = currentView === 'list' ? ' list-view' : '';
+        const clickAction = wechat
+            ? `onclick="copyTitle('${job.title.replace(/'/g, "\\'")}')"`
+            : `onclick="window.open('${job.url}', '_blank')"`;
+        const cursorStyle = wechat ? 'style="cursor:pointer;"' : '';
 
         return `
-        <div class="job-item${viewClass}" onclick="window.open('${job.url}', '_blank')">
+        <div class="job-item${viewClass}" ${clickAction} ${cursorStyle}>
             <div class="job-header">
                 <div class="job-title">${job.title}</div>
-                <div class="job-source">${job.source}</div>
+                <div class="job-source">${job.source}${wechat ? ' <span style="font-size:0.8em;color:#e67e22">[链接可能失效]</span>' : ''}</div>
             </div>
             <div class="job-meta">
                 <div class="job-date">${dateHtml}</div>
@@ -180,6 +213,7 @@ function displayJobs(jobs) {
             </div>
             ${deadlineHtml}
             ${accountHtml}
+            ${expiredHint}
         </div>`;
     }).join('');
 }
