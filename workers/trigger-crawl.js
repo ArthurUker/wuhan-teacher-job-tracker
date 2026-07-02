@@ -1,19 +1,19 @@
 /**
  * GitHub Actions 触发代理
  *
- * 部署方式：
- *   1. 登录 https://dash.cloudflare.com → Workers & Pages → Create Worker
- *   2. 粘贴本文件内容并部署
+ * 部署方式（Git 集成）：
+ *   1. 在 Cloudflare Dashboard 创建 Git 集成 Worker
+ *   2. Root directory 设为 `workers`
  *   3. Settings → Variables and Secrets → 添加：
- *      - GITHUB_PAT: GitHub Personal Access Token (需要 repo + workflow 权限)
- *      - GITHUB_REPO: ArthurUker/wuhan-teacher-job-tracker
- *   4. 复制 Worker URL（如 https://xxx.workers.dev），填入前端 TRIGGER_WORKER_URL
+ *      - GITHUB_PAT (Secret): GitHub Personal Access Token (需要 repo + workflow 权限)
+ *      - GITHUB_REPO (Variable): ArthurUker/wuhan-teacher-job-tracker
+ *      - AUTH_TOKEN (Secret): 用于鉴权的 Token（可选，但强烈建议配置）
  */
 
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 export default {
@@ -26,6 +26,14 @@ export default {
         // 只接受 POST
         if (request.method !== 'POST') {
             return json({ error: 'Method not allowed' }, 405);
+        }
+
+        // 鉴权检查（如果配置了 AUTH_TOKEN）
+        if (env.AUTH_TOKEN) {
+            const authHeader = request.headers.get('Authorization');
+            if (!authHeader || authHeader !== `Bearer ${env.AUTH_TOKEN}`) {
+                return json({ error: 'Unauthorized' }, 401);
+            }
         }
 
         try {
@@ -43,8 +51,28 @@ export default {
                 `https://api.github.com/repos/${owner}/${repoName}/actions/workflows`,
                 { headers: githubHeaders(token) }
             );
-            const { workflows } = await wfResp.json();
-            const crawlWf = workflows?.find(w =>
+
+            // 检查 API 响应状态
+            if (!wfResp.ok) {
+                const errorText = await wfResp.text();
+                return json({
+                    error: 'Failed to fetch workflows',
+                    status: wfResp.status,
+                    detail: errorText.slice(0, 200),
+                }, wfResp.status);
+            }
+
+            const wfData = await wfResp.json();
+            
+            // 检查 workflows 是否存在
+            if (!wfData.workflows || !Array.isArray(wfData.workflows)) {
+                return json({
+                    error: 'Invalid workflow response',
+                    detail: JSON.stringify(wfData).slice(0, 200),
+                }, 500);
+            }
+
+            const crawlWf = wfData.workflows.find(w =>
                 w.path === '.github/workflows/crawl.yml'
             );
 
@@ -70,9 +98,11 @@ export default {
                 });
             }
 
+            // 处理非 204 响应
+            const errorDetail = await dispatchResp.text();
             return json({
                 error: `Trigger failed (${dispatchResp.status})`,
-                detail: (await dispatchResp.text()).slice(0, 200),
+                detail: errorDetail.slice(0, 200),
             }, dispatchResp.status);
 
         } catch (err) {
