@@ -133,6 +133,9 @@ window.addEventListener('DOMContentLoaded', loadJobs);
 
 /* ========== 触发 GitHub Actions 爬虫 ========== */
 
+// 轮询状态用的 timer ID
+let statusPollTimer = null;
+
 async function triggerCrawlAndRefresh() {
     const jobList = document.getElementById('jobList');
     const refreshBtn = document.querySelector('button[onclick="loadJobs()"]');
@@ -162,18 +165,26 @@ async function triggerCrawlAndRefresh() {
             throw new Error(result.error || `HTTP ${resp.status}`);
         }
 
-        // 2. 显示等待状态，开始轮询数据更新
+        // 2. 显示等待状态，开始轮询状态和数据的更新
         showWaitingState(result.runUrl);
 
-        // 3. 每 15 秒轮询一次，最多等 5 分钟
+        // 3. 开始轮询 GitHub Actions 运行状态（每 5 秒）
+        startStatusPolling(result.runUrl);
+
+        // 4. 每 15 秒轮询一次数据更新，最多等 5 分钟
         let attempts = 0;
         const maxAttempts = 20; // 20 * 15s = 300s = 5min
         const pollInterval = setInterval(async () => {
             attempts++;
+            const statusEl = document.getElementById('crawlStatus');
+            if (statusEl && statusEl.dataset.status === 'completed') {
+                // 状态已完结，停止轮询数据
+                clearInterval(pollInterval);
+                return;
+            }
             refreshBtn.textContent = `⏳ 爬取中 (${attempts * 15}s)...`;
 
             try {
-                // 检查是否有新数据（通过检查 jobs.json 的修改时间或内容变化）
                 const checkResp = await fetch('../data/jobs.json?t=' + Date.now());
                 if (checkResp.ok) {
                     const newJobs = await checkResp.json();
@@ -184,9 +195,7 @@ async function triggerCrawlAndRefresh() {
                         return;
                     }
                 }
-            } catch (e) {
-                // 轮询失败继续尝试
-            }
+            } catch (e) { /* 忽略 */ }
 
             if (attempts >= maxAttempts) {
                 clearInterval(pollInterval);
@@ -234,9 +243,56 @@ function showWaitingState(runUrl) {
             <div class="spinner"></div>
             <h3>🚀 爬虫已触发，正在抓取最新招聘信息...</h3>
             <p>预计需要 2-5 分钟，页面将自动刷新</p>
+            <div id="crawlStatus" style="margin:10px 0;font-weight:bold;color:#f39c12;">
+                ⏳ 爬虫运行中...
+            </div>
             ${runUrl ? `<a href="${runUrl}" target="_blank" style="color:#667eea;">📋 查看运行日志 →</a>` : ''}
             <div class="poll-progress" id="pollProgress"></div>
         </div>`;
+}
+
+/** 轮询 GitHub Actions 运行状态，每 5 秒查询一次 */
+function startStatusPolling(runUrl) {
+    if (statusPollTimer) {
+        clearInterval(statusPollTimer);
+    }
+
+    statusPollTimer = setInterval(async () => {
+        try {
+            const fetchOptions = {};
+            if (AUTH_TOKEN) {
+                fetchOptions.headers = { 'Authorization': `Bearer ${AUTH_TOKEN}` };
+            }
+
+            const resp = await fetch(TRIGGER_WORKER_URL, fetchOptions);
+            if (!resp.ok) return;
+
+            const result = await resp.json();
+            const statusEl = document.getElementById('crawlStatus');
+            if (!statusEl) return;
+
+            statusEl.dataset.status = result.status || '';
+
+            if (result.status === 'in_progress' || result.status === 'queued') {
+                const start = result.createdAt ? new Date(result.createdAt) : new Date();
+                const elapsed = Math.round((Date.now() - start.getTime()) / 1000);
+                statusEl.textContent = `⏳ 爬虫运行中...（已运行 ${elapsed}s）`;
+                statusEl.style.color = '#f39c12';
+            } else if (result.status === 'completed') {
+                clearInterval(statusPollTimer);
+                statusPollTimer = null;
+
+                if (result.conclusion === 'success') {
+                    statusEl.textContent = '✅ 爬虫运行成功！正在刷新数据...';
+                    statusEl.style.color = '#27ae60';
+                } else {
+                    statusEl.textContent = `❌ 爬虫运行失败: ${result.conclusion}`;
+                    statusEl.style.color = '#e74c3c';
+                    resetRefreshBtn();
+                }
+            }
+        } catch (e) { /* 忽略轮询错误 */ }
+    }, 5000);
 }
 
 function resetRefreshBtn() {
