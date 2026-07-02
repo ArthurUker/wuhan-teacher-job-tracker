@@ -6,6 +6,11 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:  # 允许手动触发
 
+# 同一时刻只允许一个爬虫工作流运行，避免并发互推导致 push 被拒绝
+concurrency:
+  group: crawler-main
+  cancel-in-progress: false
+
 jobs:
   crawl:
     runs-on: ubuntu-latest
@@ -39,10 +44,32 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+
+        # 先拉取远端最新代码，基于最新 main 提交，降低 rebase 冲突概率
+        git fetch origin main
+        git rebase origin/main
+
         git add data/jobs.json
-        git diff --quiet && git diff --staged --quiet || git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
-        git pull --rebase origin main
-        git push
+        # 没有变更则跳过提交与推送
+        if git diff --cached --quiet; then
+          echo "没有数据变更，跳过提交。"
+          exit 0
+        fi
+
+        git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
+
+        # 带重试的 rebase + push，兜底处理极端竞态（如外部推送）
+        for i in 1 2 3 4 5; do
+          if git pull --rebase origin main && git push origin main; then
+            echo "推送成功。"
+            exit 0
+          fi
+          echo "第 $i 次推送失败，可能是远端有新提交，3 秒后重试..."
+          git rebase --abort 2>/dev/null || true
+          sleep 3
+        done
+        echo "重试 5 次后仍失败。" >&2
+        exit 1
 
   # 爬虫运行成功后，重新部署 GitHub Pages
   deploy-pages:
