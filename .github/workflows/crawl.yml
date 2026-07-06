@@ -14,18 +14,14 @@ concurrency:
   group: crawler-main
   cancel-in-progress: false
 
-# 需要 pages: write 权限，用于部署 GitHub Pages
+# 只需要 contents: write 权限（用于 commit & push）
+# GitHub Pages 直接从 main 分支提供静态文件，不需要 pages/write 权限
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
-  crawl-and-deploy:
+  crawl:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
     - name: 检出代码
@@ -51,7 +47,6 @@ jobs:
         python main.py
 
     - name: 提交并推送数据更新
-      id: commit
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -69,34 +64,23 @@ jobs:
 
         # 重新 add 变更文件，准备提交
         git add data/jobs.json
-        # 没有变更则跳过提交与推送，但仍继续部署（Pages 需重新构建）
+        # 没有变更则跳过提交与推送
         if git diff --cached --quiet; then
           echo "没有数据变更，跳过提交。"
-          echo "changed=false" >> $GITHUB_OUTPUT
-        else
-          echo "changed=true" >> $GITHUB_OUTPUT
-          git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
-
-          # 带重试的 rebase + push，兜底处理极端竞态（如外部推送）
-          for i in 1 2 3 4 5; do
-            if git pull --rebase origin main && git push origin main; then
-              echo "推送成功。"
-              break
-            fi
-            echo "第 $i 次推送失败，可能是远端有新提交，3 秒后重试..."
-            git rebase --abort 2>/dev/null || true
-            sleep 3
-          done
+          exit 0
         fi
 
-    - name: 设置 Pages
-      uses: actions/configure-pages@v5
+        git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
 
-    - name: 上传构建产物
-      uses: actions/upload-pages-artifact@v5
-      with:
-        path: '.'
-
-    - name: 部署到 GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v5
+        # 带重试的 rebase + push，兜底处理极端竞态（如外部推送）
+        for i in 1 2 3 4 5; do
+          if git pull --rebase origin main && git push origin main; then
+            echo "推送成功。"
+            exit 0
+          fi
+          echo "第 $i 次推送失败，可能是远端有新提交，3 秒后重试..."
+          git rebase --abort 2>/dev/null || true
+          sleep 3
+        done
+        echo "重试 5 次后仍失败。" >&2
+        exit 1
