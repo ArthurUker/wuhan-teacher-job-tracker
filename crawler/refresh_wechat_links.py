@@ -38,9 +38,12 @@ def get_wechat_real_url(title, headless=True):
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=headless)
+            browser = p.chromium.launch(
+                headless=headless,
+                args=['--no-sandbox', '--disable-dev-shm-usage'],  # Linux/CI 环境必需
+            )
             context = browser.new_context(
-                user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 viewport={'width': 1280, 'height': 800},
                 locale='zh-CN',
             )
@@ -51,7 +54,7 @@ def get_wechat_real_url(title, headless=True):
             def _on_response(response):
                 nonlocal real_url
                 url = response.url
-                if 'mp.weixin.qq.com' in url and '/s/' in url:
+                if 'mp.weixin.qq.com' in url:  # 兑容 /s/xxx 和 /s?__biz=xxx 两种格式
                     real_url = url
 
             page.on('response', _on_response)

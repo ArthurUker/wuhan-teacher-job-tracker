@@ -155,7 +155,7 @@ def is_recent_date(date_str, title='', months=6):
     try:
         # 如果日期未知，尝试从标题中检测旧年份
         if date_str == '未知日期':
-            old_years = ['2018年', '2019年', '2020年', '2021年']
+            old_years = ['2018年', '2019年', '2020年', '2021年', '2022年', '2023年']
             if any(y in title for y in old_years):
                 return False
             return True

@@ -19,11 +19,40 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crawl_utils import is_valid_job_posting, extract_teacher_tag
 
 
-# ========== Playwright 跳转跟踪 ==========
+# ========== 搜狗链接跳转跟踪 ==========
+
+def follow_sogou_redirect_requests(sogou_url):
+    """
+    用 requests 跟随搜狗重定向，快速获取真实的微信文章链接。
+    适合在刚抓取到链接时立即解析（此时 token 仍有效）。
+    返回 (success: bool, final_url: str)
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://weixin.sogou.com/',
+        'Connection': 'keep-alive',
+    }
+    try:
+        resp = requests.get(sogou_url, headers=headers, allow_redirects=True, timeout=15)
+        final_url = resp.url
+        if 'mp.weixin.qq.com' in final_url:
+            return True, final_url
+        # 从 HTTP 302 重定向历史中查找
+        for r in resp.history:
+            loc = r.headers.get('Location', '')
+            if 'mp.weixin.qq.com' in loc:
+                return True, loc
+    except Exception:
+        pass
+    return False, sogou_url
+
 
 def follow_sogou_with_playwright(sogou_url, headless=True):
     """
     用 Playwright 跟随搜狗跳转，获取真实的 mp.weixin.qq.com 文章链接。
+    作为 requests 方式的降级备选。
     返回 (success: bool, final_url: str)
     """
     try:
@@ -34,32 +63,36 @@ def follow_sogou_with_playwright(sogou_url, headless=True):
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=headless)
+            browser = p.chromium.launch(
+                headless=headless,
+                args=['--no-sandbox', '--disable-dev-shm-usage'],  # Linux/CI 环境必需
+            )
             context = browser.new_context(
-                user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 viewport={'width': 1280, 'height': 800},
             )
             page = context.new_page()
 
             # 监听 response，捕获 mp.weixin.qq.com 链接
+            # 兼容 /s/xxx（短链）和 /s?__biz=xxx（完整链）两种格式
             real_url = None
 
             def _on_response(response):
                 nonlocal real_url
                 url = response.url
-                if 'mp.weixin.qq.com' in url and '/s/' in url:
+                if 'mp.weixin.qq.com' in url:
                     real_url = url
 
             page.on('response', _on_response)
 
             print(f"    [PW] 浏览器跟随跳转: {sogou_url[:60]}...")
             try:
-                page.goto(sogou_url, timeout=20000, wait_until='domcontentloaded')
-                time.sleep(2)  # 等待 JS 跳转完成
+                page.goto(sogou_url, timeout=30000, wait_until='networkidle')
             except Exception:
                 pass  # 超时也继续，可能已经跳转了
 
             final_url = page.url
+            context.close()
             browser.close()
 
             if real_url:
@@ -73,44 +106,6 @@ def follow_sogou_with_playwright(sogou_url, headless=True):
     except Exception as e:
         print(f"  [PW] 执行失败: {e}")
         return False, sogou_url
-
-
-# ========== 过滤规则（保留用于 should_keep_article，但已改用 is_valid_job_posting） ==========
-
-# 需要保留的模式（即使包含"学院/大学"，也保留）
-KEEP_PATTERNS = [
-    '赴高校', '附属中学', '附中', '附属学校', '大学附属', '附小',
-    '教育局', '事业单位', '公招', '编制', '公开招聘', '教师公开招聘',
-    '中小学', '中学', '小学', '初中', '高中',
-]
-
-# 需要直接排除的模式（标题匹配即丢弃）
-BLOCK_PATTERNS = [
-    # 高校/职业类
-    '职业学院', '职业技术学院', '技工学校',
-    '辅导员', '博士后', '博士研究生', '硕士研究生',
-    '人才引进.*高校', '高校.*招聘.*教师',
-    # 高校作为雇主的招聘（大学/学院 + 第X批/次/轮 + 招聘）
-    r'.*大学.*第\d+.*[批次轮次].*招聘',
-    r'.*学院.*第\d+.*[批次轮次].*招聘',
-    r'.*大学.*公开招聘.*公告',
-    r'.*学院.*公开招聘.*公告',
-    # 考试资料/真题/试题（非招聘公告）
-    '真题', '试题', '试卷', '题库', '练习题',
-    '历年真题', '模拟题', '押题',
-    '笔试.*资料', '面试.*资料', '备考.*资料',
-    '考试资料', '备考资料', '复习资料',
-    # 培训/课程
-    '培训课程', '网课', '直播课', '录播课',
-    '辅导班', '培训班', '冲刺班',
-    # 资料/下载
-    '资料下载', '免费领取', '打包下载',
-    # 其他非招聘内容
-    '考试大纲', '考点汇总', '知识点',
-]
-
-# 高校雇主关键词（出现在"招聘"之前则判定为高校招聘）
-UNIVERSITY_EMPLOYER_KEYS = ['大学', '学院']
 
 
 # 武汉及周边地市关键词（必须包含其中之一才保留）
@@ -138,51 +133,6 @@ def is_local_area(title):
         if school in title:
             return True
     return False
-
-
-def should_keep_article(title):
-    """
-    判断是否为中小学/公立学校教师招聘信息。
-    返回 True 表示保留，False 表示丢弃。
-
-    过滤优先级：
-    1. 先检查排除模式（BLOCK_PATTERNS）- 直接丢弃
-    2. 再检查是否为高校作为雇主的招聘 - 丢弃
-    3. 检查地区限制 - 非本地则丢弃
-    4. 最后检查保留模式（KEEP_PATTERNS）- 保留
-    5. 默认保留
-    """
-    if not title:
-        return False
-
-    # 1. 先检查排除模式（正则）- 匹配即丢弃
-    for pattern in BLOCK_PATTERNS:
-        if re.search(pattern, title):
-            return False
-
-    # 2. 检查是否为高校作为雇主的招聘
-    recruit_positions = [m.start() for m in re.finditer('招聘', title)]
-    for recruit_idx in recruit_positions:
-        prefix = title[:recruit_idx]
-        stripped = prefix
-        for prefix_keyword in ['武汉教师', '湖北教师', '黄石教师', '鄂州教师',
-                               '孝感教师', '黄冈教师', '咸宁教师', '武汉事业单位']:
-            stripped = stripped.replace(prefix_keyword, '')
-        for key in UNIVERSITY_EMPLOYER_KEYS:
-            if key in stripped:
-                return False
-
-    # 3. 检查地区限制 - 必须是本地招聘
-    if not is_local_area(title):
-        return False
-
-    # 4. 再检查保留模式
-    for pattern in KEEP_PATTERNS:
-        if pattern in title:
-            return True
-
-    # 5. 默认保留
-    return True
 
 
 # ========== 时间提取工具 ==========
@@ -381,14 +331,19 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             if sogou_url.startswith('/'):
                                 sogou_url = 'https://weixin.sogou.com' + sogou_url
 
-                            # 用 Playwright 跟随跳转，获取微信文章原始URL（mp.weixin.qq.com）
+                            # 先用 requests 跟随重定向（快速，无需浏览器）；失败再用 Playwright
                             wechat_url = sogou_url
-                            success, real_url = follow_sogou_with_playwright(sogou_url, headless=True)
+                            success, real_url = follow_sogou_redirect_requests(sogou_url)
                             if success:
                                 wechat_url = real_url
-                                print(f"    ✅ 获取真实链接: {real_url[:80]}...")
+                                print(f"    ✅ [requests] 获取真实链接: {real_url[:80]}...")
                             else:
-                                print(f"    ⚠️ 未能获取真实链接，保留搜狗链接")
+                                success, real_url = follow_sogou_with_playwright(sogou_url, headless=True)
+                                if success:
+                                    wechat_url = real_url
+                                    print(f"    ✅ [Playwright] 获取真实链接: {real_url[:80]}...")
+                                else:
+                                    print(f"    ⚠️ 未能获取真实链接，保留搜狗临时链接（定时任务将刷新）")
 
                             # 提取公众号名称
                             account_name = '未知公众号'
@@ -478,7 +433,7 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                     seen_titles.add(art['title'])
                     articles.append(art)
 
-            print(f"  关键词「{keyword}」共获取 {len(keyword_articles)} 篇（去重后 {len([a for a in keyword_articles if a['title'] in seen_titles])} 篇）")
+            print(f"  关键词「{keyword}」共获取 {len(keyword_articles)} 篇（去重后 {len(seen_titles)} 篇）")
 
             # 不同关键词之间延迟
             time.sleep(3)

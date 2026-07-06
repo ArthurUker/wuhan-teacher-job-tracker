@@ -14,6 +14,8 @@ let currentView = 'card'; // 'card' 或 'list'
 const TRIGGER_WORKER_URL = 'https://wuhan-teacher-job-tracker.arthuruker.workers.dev';
 
 // Worker 鉴权 Token
+// 安全警告：该 token 对所有访问者可见。
+// 目前内置速率限制防滥用；Worker 端必须配置 AUTH_TOKEN 环境变量（已设为 Cloudflare Secret）。
 const AUTH_TOKEN = 'guorenkang';
 
 /** 刷新数据 - 只从本地加载 jobs.json，不触发爬虫 */

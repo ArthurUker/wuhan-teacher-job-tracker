@@ -51,8 +51,14 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-        # 暂存爬虫生成的新数据，避免 rebase 时因未暂存更改而失败
+        # 先检查是否有实际变更；无变更则直接跳过，避免后续 stash pop 因无 stash entry 而失败
         git add data/jobs.json
+        if git diff --cached --quiet; then
+          echo "没有数据变更，跳过提交。"
+          exit 0
+        fi
+
+        # 暂存爬虫生成的新数据，避免 rebase 时因未暂存更改而失败
         git stash push -m "临时暂存爬虫数据"
 
         # 拉取远端最新代码并 rebase
@@ -64,11 +70,6 @@ jobs:
 
         # 重新 add 变更文件，准备提交
         git add data/jobs.json
-        # 没有变更则跳过提交与推送
-        if git diff --cached --quiet; then
-          echo "没有数据变更，跳过提交。"
-          exit 0
-        fi
 
         git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
 
