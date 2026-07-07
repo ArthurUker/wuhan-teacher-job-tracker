@@ -39,7 +39,7 @@ def clean_jobs():
 
     for job in jobs:
         title = job.get('title', '')
-        if is_valid_job_posting(title):
+        if is_valid_job_posting(title, source=job.get('source')):
             filtered.append(job)
         else:
             removed_by_filter.append(title)

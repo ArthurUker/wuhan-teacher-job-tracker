@@ -390,6 +390,7 @@ async function triggerCrawlAndRefresh() {
 
             if (attempts >= maxAttempts) {
                 clearInterval(pollInterval);
+                if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
                 jobList.innerHTML += `
                     <p style="text-align:center;color:#e67e22;padding:10px;">
                         ⏱ 爬虫仍在运行中，请稍后手动刷新页面查看最新数据。
@@ -426,6 +427,7 @@ async function loadFreshData() {
         if (isCrawling) {
             const statusEl = document.getElementById('crawlStatus');
             if (statusEl) statusEl.textContent = '✅ 数据已更新！';
+            if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
             resetRefreshBtn();
         }
     } catch (error) {
@@ -485,6 +487,7 @@ function startStatusPolling(runUrl) {
                 } else {
                     statusEl.textContent = `❌ 爬虫运行失败: ${result.conclusion}`;
                     statusEl.style.color = '#e74c3c';
+                    if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
                     resetRefreshBtn();
                 }
             }

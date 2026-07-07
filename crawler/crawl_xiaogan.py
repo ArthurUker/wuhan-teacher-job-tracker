@@ -31,8 +31,13 @@ def crawl_xiaogan():
     try:
         print(f"正在爬取: {target_url}")
 
-        response = retry_request(target_url, headers=headers, timeout=30)
-        response.encoding = 'utf-8'
+        try:
+            response = retry_request(target_url, headers=headers, timeout=30)
+        except Exception as e:
+            # GitHub Actions 境外 runner 常无法直连该站点，尝试 http 兜底
+            print(f"  HTTPS 请求失败({e})，尝试 HTTP...")
+            response = retry_request(target_url.replace('https://', 'http://'), headers=headers, timeout=30)
+        response.encoding = response.apparent_encoding or 'utf-8'
 
         if response.status_code != 200:
             print(f"访问失败，状态码: {response.status_code}")
@@ -59,7 +64,7 @@ def crawl_xiaogan():
             title = link.get_text(strip=True)
             href = link.get('href', '')
 
-            if not is_valid_job_posting(title):
+            if not is_valid_job_posting(title, source='孝感市教育局'):
                 continue
 
             full_url = build_full_url(href, base_url, target_url)
@@ -69,10 +74,6 @@ def crawl_xiaogan():
             date_str = extract_date_from_element(link)
             if not date_str:
                 date_str = '未知日期'
-
-            if not is_recent_date(date_str, title, months=6):
-                print(f"跳过旧信息: {title} ({date_str})")
-                continue
 
             job = {
                 'title': title,
@@ -87,7 +88,7 @@ def crawl_xiaogan():
         print(f"\n孝感市教育局爬取完成，共找到 {len(jobs)} 条有效招聘信息")
 
     except Exception as e:
-        print(f"爬取孝感市教育局时发生错误: {str(e)}")
+        print(f"爬取孝感市教育局时发生错误: {str(e)}（若为 GitHub Actions 境外 runner，可能因网络不可达）")
 
     return jobs
 

@@ -64,9 +64,20 @@ def crawl_wuhan_hr():
                         seen.add(full)
                         candidate_urls.append((text, full))
 
-            print(f"  首页发现 {len(candidate_urls)} 个候选栏目")
+            # 已知招聘/招录栏目深链兜底（自适应发现可能漏掉真实招聘栏目）
+            KNOWN_COLUMNS = [
+                'https://rsj.wuhan.gov.cn/zwgk_17/zfgkml/zkly/',        # 招录聘用
+                'https://rsj.wuhan.gov.cn/zwgk_17/fdzdgknr/rsxx2021/',  # 人事信息
+                'https://rsj.wuhan.gov.cn/sy_20/jgzydwzp/',             # 机关事业单位招聘（可能已失效，仍尝试）
+            ]
+            for u in KNOWN_COLUMNS:
+                if u not in seen:
+                    seen.add(u)
+                    candidate_urls.append(('已知栏目', u))
+
+            print(f"  共发现 {len(candidate_urls)} 个候选栏目（含已知深链兜底）")
             # 限制数量，控制运行时长
-            candidate_urls = candidate_urls[:6]
+            candidate_urls = candidate_urls[:8]
 
             # 2. 逐个渲染栏目页解析
             for name, cu in candidate_urls:
@@ -94,7 +105,7 @@ def crawl_wuhan_hr():
                         if not title or len(title) < 5:
                             continue
 
-                        if not is_valid_job_posting(title):
+                        if not is_valid_job_posting(title, source='武汉市人社局'):
                             continue
 
                         full_url = build_full_url(href, base_url, cu)
@@ -104,10 +115,6 @@ def crawl_wuhan_hr():
                         date_str = extract_date_from_element(link)
                         if not date_str:
                             date_str = '未知日期'
-
-                        if not is_recent_date(date_str, title, months=6):
-                            print(f"跳过旧信息: {title} ({date_str})")
-                            continue
 
                         job = {
                             'title': title,

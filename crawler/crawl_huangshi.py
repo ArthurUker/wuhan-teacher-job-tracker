@@ -28,7 +28,7 @@ def crawl_huangshi():
     try:
         print(f"正在爬取: {target_url}")
         response = requests.get(target_url, headers=headers, timeout=30)
-        response.encoding = 'utf-8'
+        response.encoding = response.apparent_encoding or 'utf-8'
         
         if response.status_code != 200:
             print(f"访问失败，状态码: {response.status_code}")
@@ -41,7 +41,7 @@ def crawl_huangshi():
             title = link.get_text(strip=True)
             href = link.get('href', '')
             
-            if not is_valid_job_posting(title):
+            if not is_valid_job_posting(title, source='黄石市教育局'):
                 continue
             
             full_url = build_full_url(href, base_url, target_url)
@@ -51,10 +51,6 @@ def crawl_huangshi():
             date_str = extract_date_from_element(link)
             if not date_str:
                 date_str = '未知日期'
-            
-            if not is_recent_date(date_str, title, months=6):
-                print(f"跳过旧信息: {title} ({date_str})")
-                continue
             
             job = {
                 'title': title,

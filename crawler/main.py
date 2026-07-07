@@ -172,6 +172,7 @@ def main():
         seen[key] = job
 
     merged_jobs = list(seen.values())
+    all_merged = merged_jobs  # 清理前全量，供低频源兜底使用
 
     # ===== 过期清理 =====
     # 非编制类：保留最近 6 个月；编制类：保留最近 12 个月
@@ -207,6 +208,25 @@ def main():
 
     merged_jobs = kept_jobs
     print(f"过期清理: 删除 {expired_count} 条过期数据")
+
+    # ===== 低频源兜底 =====
+    # 某些政府教育站点发招聘很少，最新一条也超过清理期限，会被全部删光、长期空白，
+    # 让人误以为爬虫故障。若某来源清理后为空，则保留其清理前的最新 1 条。
+    surviving_sources = {j.get('source') for j in merged_jobs}
+    emptied = {}
+    for job in all_merged:
+        src = job.get('source')
+        if src not in surviving_sources:
+            emptied.setdefault(src, []).append(job)
+    for src, items in emptied.items():
+        if not items:
+            continue
+        items.sort(
+            key=lambda x: x.get('date') if x.get('date') != '未知日期' else '2000-01-01',
+            reverse=True,
+        )
+        merged_jobs.append(items[0])
+        print(f"低频源兜底: 为「{src}」保留最新 1 条: {items[0].get('title', '')[:40]}")
 
     # 按日期排序
     merged_jobs.sort(key=lambda x: x['date'] if x['date'] != '未知日期' else '2000-01-01', reverse=True)

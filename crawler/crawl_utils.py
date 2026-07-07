@@ -33,6 +33,14 @@ BLOCK_PATTERNS = [
     '资料下载', '免费领取', '打包下载',
     # 其他非招聘内容
     '考试大纲', '考点汇总', '知识点',
+    # 考试事务 / 索引 / 问答类（标题常含"招聘/教师"易误收，但本身不是招聘公告）
+    # 注意：不可使用过宽词（如裸"提醒""成绩""分数线"），否则会误删真实招聘/面试公告
+    '专栏',                      # 考试/招聘专栏（索引页，非具体公告）
+    '常见问答', '问答',          # FAQ，非公告
+    '考前提醒', '温馨提示',      # 考试/温馨提醒（保留"报名提醒"等真实招聘）
+    '加分考生名单',              # 考试加分名单公示（考试事务）
+    '成绩公布',                  # 考试成绩公布及复查事项（考试事务）
+    '举报电话',                  # 举报渠道，非公告
 ]
 
 # 强指向教师词（命中即判为教师招聘）
@@ -60,20 +68,26 @@ UNIVERSITY_EXCEPTION_KEYS = [
     '教育局', '中小学',
 ]
 
+# 严格模式来源（聚合类，易混入综合事业单位招聘，必须命中教师强指向词）
+# 政府/教育站点来源采用宽松模式（见 is_valid_job_posting）
+STRICT_SOURCES = {'微信公众号'}
 
-def is_valid_job_posting(title):
+
+def is_valid_job_posting(title, source=None):
     """
     判断是否为有效的教师招聘信息。
-    采用分级判定逻辑，避免综合事业单位招聘被误收。
+
+    采用"严格/宽松"双模式（由 source 决定）：
+    - 微信公众号等聚合来源（STRICT_SOURCES，或 source=None 的默认）：严格模式，
+      必须命中教师强指向词，避免综合事业单位招聘被误收。
+    - 政府/教育站点来源：宽松模式，命中"教师强指向词"或"事业单位/编制/人才引进"
+      等招聘类泛化词即保留。这类站点发布的招聘基本都是教师/教育岗，且标题常写作
+      "事业单位公开招聘"而无"教师"二字（如蔡甸区事业单位公开招聘公告）。
 
     判定流程：
-    Step 1: 必须包含招聘动作词（招聘/招录/招考/引进/选调），否则 False
-    Step 2: 命中 BLOCK_PATTERNS 直接判 False（高校职教、考试资料、培训等）
-    Step 3: 命中强指向教师词（STRONG_TEACHER_KEYWORDS）直接判 True
-    Step 4: 仅命中泛化词（GENERIC_KEYWORDS）但未命中强指向词，判 False
-    Step 5: 高校雇主检查——"大学/学院/高校"出现在"招聘"之前且不含例外词，判 False
-
-    返回 True 如果是编制类教师招聘信息，否则返回 False。
+    Step 1: 必须包含招聘动作词（招聘/招录/招考/引进/选调/招），否则 False
+    Step 2: 命中 BLOCK_PATTERNS 直接判 False（高校职教、考试资料、培训、专栏、问答等）
+    严格模式额外要求命中教师强指向词；宽松模式允许"事业单位/编制/人才引进"等泛化词。
     """
     if not title:
         return False
@@ -83,33 +97,36 @@ def is_valid_job_posting(title):
     if not any(keyword in title for keyword in action_keywords):
         return False
 
-    # Step 2: 命中排除模式（正则）直接丢弃
+    # Step 2: 命中排除模式（正则/关键词）直接丢弃
     for pattern in BLOCK_PATTERNS:
         if re.search(pattern, title):
             return False
 
-    # Step 3: 命中强指向教师词 → 直接保留
-    if any(keyword in title for keyword in STRONG_TEACHER_KEYWORDS):
-        return True
+    strict = (source in STRICT_SOURCES) or (source is None)
 
-    # Step 4: 仅命中泛化词（事业单位/人才/编制/学校等）但未命中强指向词 → 丢弃
-    # 这说明标题描述的是综合事业单位招聘，而非专门的教师岗
-    if any(keyword in title for keyword in GENERIC_KEYWORDS):
-        # 命中了泛化词，但没有强指向词，说明不是专门的教师招聘
+    if strict:
+        # 严格模式：必须命中教师强指向词
+        if any(keyword in title for keyword in STRONG_TEACHER_KEYWORDS):
+            return True
+        # 仅命中泛化词（事业单位/人才/编制/教育系统）但未命中强指向词 → 丢弃
+        if any(keyword in title for keyword in GENERIC_KEYWORDS):
+            return False
+        # 高校雇主检查："大学/学院/高校"出现在"招聘"之前且不含例外词 → 丢弃
+        recruit_idx = title.find('招聘')
+        if recruit_idx >= 0:
+            prefix = title[:recruit_idx]
+            is_univ_employer = any(k in prefix for k in UNIVERSITY_EMPLOYER_KEYS)
+            is_keep = any(k in title for k in UNIVERSITY_EXCEPTION_KEYS)
+            if is_univ_employer and not is_keep:
+                return False
         return False
 
-    # Step 5: 高校雇主检查
-    # 判断逻辑：标题里"大学/学院/高校"出现在"招聘"之前，且不含保留例外词
-    recruit_idx = title.find('招聘')
-    if recruit_idx >= 0:
-        prefix = title[:recruit_idx]
-        is_univ_employer = any(k in prefix for k in UNIVERSITY_EMPLOYER_KEYS)
-        is_keep = any(k in title for k in UNIVERSITY_EXCEPTION_KEYS)
-        if is_univ_employer and not is_keep:
-            return False
-
-    # 已通过 Step 1 检查（有招聘动作词），但未命中任何教师相关关键词
-    # 为安全起见，不再宽松放行，返回 False
+    # 宽松模式（政府/教育站点）：命中教师强指向词 或 招聘类泛化词即保留
+    if any(keyword in title for keyword in STRONG_TEACHER_KEYWORDS):
+        return True
+    if any(keyword in title for keyword in GENERIC_KEYWORDS):
+        return True
+    # 其余（含招聘动作词但无教师/事业单位语义，如"招标""招租"）丢弃
     return False
 
 
@@ -232,26 +249,12 @@ def extract_date_from_element(link_element):
 
 
 def build_full_url(href, base_url, target_url):
-    """构建完整的URL"""
+    """构建完整的URL（使用标准 urljoin，正确处理 /、//、./、../ 等相对形式）"""
     if not href:
         return None
-    
-    if href.startswith('http'):
-        return href
-    elif href.startswith('//'):
-        return 'https:' + href
-    elif href.startswith('/'):
-        return base_url + href
-    elif href.startswith('./'):
-        return target_url.replace('index.html', '') + href.replace('./', '')
-    elif href.startswith('../'):
-        return base_url + '/' + href.replace('../', '')
-    else:
-        # 相对路径
-        if target_url.endswith('/'):
-            return target_url + href
-        else:
-            return target_url.rsplit('/', 1)[0] + '/' + href
+
+    from urllib.parse import urljoin
+    return urljoin(target_url, href)
 
 
 def retry_request(url, headers=None, timeout=30, retries=3, backoff=2):

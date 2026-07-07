@@ -389,7 +389,7 @@ def crawl_sogou_wechat(keywords=None, max_pages=2):
                             urgent = is_urgent(deadline)
 
                             # 过滤非教师招聘信息（使用 crawl_utils.py 统一过滤规则）
-                            if not is_valid_job_posting(title):
+                            if not is_valid_job_posting(title, source='微信公众号'):
                                 print(f"    跳过非教师招聘: {title[:60]}")
                                 continue
                             

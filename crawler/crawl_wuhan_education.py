@@ -62,9 +62,12 @@ def crawl_wuhan_education():
         content_area = (
             soup.find('div', class_='list') or
             soup.find('div', class_='news-list') or
+            soup.find('div', class_='news') or
             soup.find('ul', class_='news_list') or
+            soup.find('div', class_='list-con') or
             soup.find('div', class_='content') or
             soup.find('div', id='content') or
+            soup.find('div', class_='article') or
             soup
         )
         links = content_area.find_all('a')
@@ -79,7 +82,7 @@ def crawl_wuhan_education():
             if not title or len(title) < 5:
                 continue
 
-            if not is_valid_job_posting(title):
+            if not is_valid_job_posting(title, source='武汉市教育局'):
                 filtered_count += 1
                 continue
 
@@ -90,10 +93,6 @@ def crawl_wuhan_education():
             date_str = extract_date_from_element(link)
             if not date_str:
                 date_str = '未知日期'
-
-            if not is_recent_date(date_str, title, months=6):
-                print(f"跳过旧信息: {title} ({date_str})")
-                continue
 
             job = {
                 'title': title,
