@@ -21,7 +21,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
     - name: 检出代码
@@ -43,6 +43,11 @@ jobs:
 
     - name: 刷新公众号链接
       run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        # 先同步到远端最新 main，尽量在最新数据基础上刷新，减少后续推送竞态
+        git fetch origin main
+        git rebase origin/main || git rebase --abort
         cd crawler
         python refresh_wechat_links.py
 
@@ -57,28 +62,35 @@ jobs:
           exit 0
         fi
 
-        # 暂存刷新结果，避免 rebase 时因未暂存更改而失败
-        git stash push -m "临时暂存公众号链接刷新结果"
-
-        # 拉取远端最新代码并 rebase
-        git fetch origin main
-        git rebase origin/main
-
-        # 恢复暂存的刷新结果
-        git stash pop
-
-        # 重新 add 变更文件，准备提交
-        git add data/jobs.json
-
         git commit -m "刷新公众号链接 - $(date +'%Y-%m-%d %H:%M:%S')"
 
-        # 带重试的 rebase + push，兜底处理与主爬虫并发导致的竞态
+        # 带重试的 rebase + push，兜底处理与主爬虫并发修改 data/jobs.json 的竞态。
+        # 关键点：两个工作流都会改 data/jobs.json，git 的行级自动合并经常产生
+        # CONFLICT。这里不手工解冲突，而是「以远端 main 为准 + 在其上重新刷新」：
+        # 这样既拿到主爬虫的新条目，又由本工作流重新求出正确的永久链接。
         for i in 1 2 3 4 5; do
-          if git pull --rebase origin main && git push origin main; then
-            echo "推送成功。"
-            exit 0
+          if git pull --rebase origin main; then
+            # rebase 成功（自动合并已处理 jobs.json），直接尝试推送
+            if git push origin main; then
+              echo "推送成功。"
+              exit 0
+            fi
+          else
+            # rebase 冲突：以远端 main 为准，重新在其上刷新链接并改写本次提交
+            echo "检测到 jobs.json 冲突，采用「以远端为准 + 重新刷新」策略解决..."
+            git checkout --theirs -- data/jobs.json 2>/dev/null || true
+            git add data/jobs.json
+            GIT_EDITOR=true git rebase --continue 2>/dev/null || git rebase --abort
+            python crawler/refresh_wechat_links.py
+            git add data/jobs.json
+            git commit --amend -m "刷新公众号链接 - $(date +'%Y-%m-%d %H:%M:%S')" 2>/dev/null \
+              || git commit -m "刷新公众号链接(冲突重刷) - $(date +'%Y-%m-%d %H:%M:%S')"
+            if git push origin main; then
+              echo "推送成功。"
+              exit 0
+            fi
           fi
-          echo "第 $i 次推送失败，可能是远端有新提交，3 秒后重试..."
+          echo "第 $i 次推送失败，3 秒后重试..."
           git rebase --abort 2>/dev/null || true
           sleep 3
         done
