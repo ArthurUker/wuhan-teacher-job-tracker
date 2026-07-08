@@ -41,6 +41,10 @@ BLOCK_PATTERNS = [
     '加分考生名单',              # 考试加分名单公示（考试事务）
     '成绩公布',                  # 考试成绩公布及复查事项（考试事务）
     '举报电话',                  # 举报渠道，非公告
+    # 结果/公示类：聘用结果、录用名单、资格复审名单等——不是招聘公告本身
+    r'拟聘用.*公示',             # 拟聘用人员公示（结果公布，非招聘）
+    r'拟录用.*名单',             # 拟录用人员名单
+    r'聘用人员.*公示',           # 聘用人员公示
 ]
 
 # 强指向教师词（命中即判为教师招聘）
@@ -57,6 +61,13 @@ STRONG_TEACHER_KEYWORDS = [
 # 泛化词（仅命中这些词、未命中强指向词时，不足以判定为教师招聘）
 GENERIC_KEYWORDS = [
     '事业单位', '人才', '编制', '教育系统',
+]
+
+# 宽松模式下泛化词放行所需的"教育上下文"：来源名称或标题中需至少含一个，
+# 用于拦截政府综合类事业单位招聘（如汉阳区“事业单位公开招聘”含医生/公务员等）
+EDUCATION_CONTEXT_KEYS = [
+    '教育', '学校', '教师', '教学', '中小学', '幼儿园',
+    '义务教育', '高中', '初中', '小学', '学前',
 ]
 
 # 高校雇主关键词（出现在"招聘"之前则判定为高校招聘，需排除）
@@ -121,11 +132,19 @@ def is_valid_job_posting(title, source=None):
                 return False
         return False
 
-    # 宽松模式（政府/教育站点）：命中教师强指向词 或 招聘类泛化词即保留
+    # 宽松模式（政府/教育站点）
     if any(keyword in title for keyword in STRONG_TEACHER_KEYWORDS):
         return True
     if any(keyword in title for keyword in GENERIC_KEYWORDS):
-        return True
+        # 泛化词放行前提：来源或标题中必须有教育上下文，
+        # 避免政府综合类事业单位招聘（含医生/公务员等非教师岗）被误收。
+        # 例：汉阳区人民政府的“事业单位公开招聘公告”（无教育语义）→ 拦截；
+        #     蔡甸区教育局的“事业单位公开招聘”（source 含“教育”）→ 放行。
+        has_edu_context = (
+            any(k in (source or '') for k in EDUCATION_CONTEXT_KEYS) or
+            any(k in title for k in EDUCATION_CONTEXT_KEYS)
+        )
+        return has_edu_context
     # 其余（含招聘动作词但无教师/事业单位语义，如"招标""招租"）丢弃
     return False
 
