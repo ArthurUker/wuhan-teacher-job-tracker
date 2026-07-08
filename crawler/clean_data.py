@@ -9,6 +9,8 @@ import json
 import sys
 import os
 import random
+import re
+from datetime import datetime, timedelta
 
 # 添加当前目录到 path，以便导入 crawl_utils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +67,54 @@ def clean_jobs():
     deduped = list(seen_titles.values())
     dupe_count = len(filtered) - len(deduped)
     print(f"Step2 去重后：{len(deduped)} 条（去除 {dupe_count} 条重复数据）")
+
+    # ===== Step 2.5: 过期清理（与 main.py 保持一致的逻辑）=====
+    # 非编制类：保留最近 6 个月；编制类：保留最近 12 个月；绝对上限 24 个月
+    now = datetime.now()
+    cutoff_regular = now - timedelta(days=365)
+    cutoff_other = now - timedelta(days=180)
+    cutoff_absolute = now - timedelta(days=730)
+
+    def extract_date_for_cleanup(job):
+        """为过期清理提取条目日期，未知时从标题回填年份。"""
+        date_str = job.get('date', '未知日期')
+        if date_str != '未知日期':
+            try:
+                if len(date_str) == 7:
+                    return datetime.strptime(date_str + '-01', '%Y-%m-%d')
+                return datetime.strptime(date_str, '%Y-%m-%d')
+            except ValueError:
+                pass
+        title = job.get('title', '')
+        m = re.search(r'(20(1[5-9]|2[0-6]))年', title)
+        if m:
+            year, month = int(m.group(1)), 6
+            mm = re.search(r'(\d{1,2})月', title)
+            if mm:
+                month = min(int(mm.group(1)), 12)
+            return datetime(year, month, 1)
+        return None
+
+    cleaned_by_age = []
+    expired_by_age = 0
+    for job in deduped:
+        is_regular = '编制' in job.get('type', '')
+        job_date = extract_date_for_cleanup(job)
+        cutoff = cutoff_regular if is_regular else cutoff_other
+
+        if job_date is None:
+            cleaned_by_age.append(job)
+            continue
+        if job_date < cutoff_absolute:
+            expired_by_age += 1
+            continue
+        if job_date >= cutoff:
+            cleaned_by_age.append(job)
+        else:
+            expired_by_age += 1
+
+    deduped = cleaned_by_age
+    print(f"Step2.5 过期清理后：{len(deduped)} 条（清除 {expired_by_age} 条过期数据）")
 
     # ===== Step 3: 重新打标签 + 排序（按日期降序）=====
     cleaned = []

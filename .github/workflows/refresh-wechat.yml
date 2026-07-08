@@ -1,0 +1,86 @@
+name: 刷新公众号链接
+
+# 与“爬取教师招聘信息”错开 30 分钟：
+#   主爬虫  : 0 */2  (UTC 0:00/2:00...)  → 北京时间 8:00/10:00...
+#   本工作流: 30 */2 (UTC 0:30/2:30...)  → 北京时间 8:30/10:30...
+# 职责：仅维护 jobs.json 中已有公众号条目的链接新鲜度（临时链接→永久链接），
+#       不再做全量关键词搜索，更轻、反爬压力更小。
+on:
+  schedule:
+    - cron: '30 */2 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+# 与爬虫不同组，但同样需要 contents: write 用于 commit & push
+concurrency:
+  group: refresh-wechat
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: 设置 Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: 安装依赖
+      run: |
+        cd crawler
+        pip install -r requirements.txt
+        python -m playwright install chromium
+
+    - name: 刷新公众号链接
+      run: |
+        cd crawler
+        python refresh_wechat_links.py
+
+    - name: 提交并推送链接更新
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        git add data/jobs.json
+        if git diff --cached --quiet; then
+          echo "没有链接变更，跳过提交。"
+          exit 0
+        fi
+
+        # 暂存刷新结果，避免 rebase 时因未暂存更改而失败
+        git stash push -m "临时暂存公众号链接刷新结果"
+
+        # 拉取远端最新代码并 rebase
+        git fetch origin main
+        git rebase origin/main
+
+        # 恢复暂存的刷新结果
+        git stash pop
+
+        # 重新 add 变更文件，准备提交
+        git add data/jobs.json
+
+        git commit -m "刷新公众号链接 - $(date +'%Y-%m-%d %H:%M:%S')"
+
+        # 带重试的 rebase + push，兜底处理与主爬虫并发导致的竞态
+        for i in 1 2 3 4 5; do
+          if git pull --rebase origin main && git push origin main; then
+            echo "推送成功。"
+            exit 0
+          fi
+          echo "第 $i 次推送失败，可能是远端有新提交，3 秒后重试..."
+          git rebase --abort 2>/dev/null || true
+          sleep 3
+        done
+        echo "重试 5 次后仍失败。" >&2
+        exit 1

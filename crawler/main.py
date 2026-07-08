@@ -7,6 +7,7 @@
 import sys
 import os
 import json
+import re
 from datetime import datetime, timedelta
 
 # 添加爬虫目录到路径
@@ -175,36 +176,59 @@ def main():
     all_merged = merged_jobs  # 清理前全量，供低频源兜底使用
 
     # ===== 过期清理 =====
-    # 非编制类：保留最近 6 个月；编制类：保留最近 12 个月
+    # 非编制类：保留最近 6 个月；编制类：保留最近 12 个月；绝对上限 24 个月
     now = datetime.now()
     cutoff_regular = now - timedelta(days=365)   # 编制类 12 个月
-    cutoff_other = now - timedelta(days=180)        # 非编制类 6 个月
+    cutoff_other = now - timedelta(days=180)      # 非编制类 6 个月
+    cutoff_absolute = now - timedelta(days=730)   # 绝对上限：任何条目不超过 24 个月
+
+    def extract_date_for_cleanup(job):
+        """为过期清理提取条目日期。优先用 date 字段，未知时从标题回填年份。"""
+        date_str = job.get('date', '未知日期')
+
+        if date_str != '未知日期':
+            try:
+                if len(date_str) == 7:
+                    return datetime.strptime(date_str + '-01', '%Y-%m-%d')
+                return datetime.strptime(date_str, '%Y-%m-%d')
+            except ValueError:
+                pass
+
+        # 回填：从标题中提取年份（如 "2018年鄂城区农村义务教育..." → 2018-06-01）
+        title = job.get('title', '')
+        m = re.search(r'(20(1[5-9]|2[0-6]))年', title)
+        if m:
+            year = int(m.group(1))
+            # 尝试同时提取月份
+            mm = re.search(r'(\d{1,2})月', title)
+            month = int(mm.group(1)) if mm else 6
+            return datetime(year, min(month, 12), 1)
+
+        # 完全无法判断 → 视为极旧（会被绝对上限清除），但不被普通 cutoff 删
+        return None
 
     expired_count = 0
     kept_jobs = []
     for job in merged_jobs:
-        date_str = job.get('date', '未知日期')
         is_regular = '编制' in job.get('type', '')
+        job_date = extract_date_for_cleanup(job)
 
-        if date_str == '未知日期':
-            # 未知日期的条目保留
+        cutoff = cutoff_regular if is_regular else cutoff_other
+
+        if job_date is None:
+            # 标题也无年份线索 → 保留（可能是近期发布但格式特殊）
             kept_jobs.append(job)
             continue
 
-        # 解析日期（支持 YYYY-MM-DD 和 YYYY-MM）
-        try:
-            if len(date_str) == 7:  # YYYY-MM
-                job_date = datetime.strptime(date_str + '-01', '%Y-%m-%d')
-            else:
-                job_date = datetime.strptime(date_str, '%Y-%m-%d')
-            cutoff = cutoff_regular if is_regular else cutoff_other
-            if job_date >= cutoff:
-                kept_jobs.append(job)
-            else:
-                expired_count += 1
-        except ValueError:
-            # 日期格式异常，保留
+        if job_date < cutoff_absolute:
+            # 超过绝对上限（24 个月），无论编制与否一律清除
+            expired_count += 1
+            continue
+
+        if job_date >= cutoff:
             kept_jobs.append(job)
+        else:
+            expired_count += 1
 
     merged_jobs = kept_jobs
     print(f"过期清理: 删除 {expired_count} 条过期数据")
