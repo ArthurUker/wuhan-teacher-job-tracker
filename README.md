@@ -74,9 +74,8 @@ python -m http.server 8000
 
 ### 3. 自动更新
 
-项目已配置 GitHub Actions，每天自动运行爬虫并更新数据。
-
-如需手动触发，在 GitHub 仓库的 Actions 页面点击 "Run workflow"。
+- **自托管（推荐）**：由 `server/app.py` 的 APScheduler 按计划后台运行爬虫，无需人工干预。
+- **GitHub Actions（备用）**：两个 workflow 的定时已关闭，仅保留 `workflow_dispatch` 手动触发。
 
 ## 项目结构
 
