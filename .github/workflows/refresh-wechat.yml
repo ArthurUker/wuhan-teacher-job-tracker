@@ -7,9 +7,11 @@ name: 刷新公众号链接
 # 职责：仅维护 jobs.json 中已有公众号条目的链接新鲜度（临时链接→永久链接），
 #       不再做全量关键词搜索，更轻、反爬压力更小。
 on:
-  schedule:
-    - cron: '30 */6 * * *'
-  workflow_dispatch:  # 允许手动触发
+  # 已迁移到自托管服务器运行，关闭定时以节省 GitHub Actions 额度。
+  # 如需让 GitHub 作为备用数据源，取消下面注释即可恢复每 6 小时定时：
+  # schedule:
+  #   - cron: '30 */6 * * *'
+  workflow_dispatch:  # 允许手动触发（作为备用）
 
 # 与爬虫不同组，但同样需要 contents: write 用于 commit & push
 concurrency:

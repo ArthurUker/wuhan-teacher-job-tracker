@@ -103,16 +103,66 @@ wuhan-teacher-job-tracker/
 │   ├── style.css                 # 样式
 │   └── app.js                    # JavaScript 逻辑
 └── .github/
-    └── workflows/                 # GitHub Actions 配置
+    └── workflows/                 # GitHub Actions 配置（已改为手动备用）
         └── crawl.yml
+└── server/                       # 自托管后端（Flask + APScheduler）
+    ├── app.py
+    ├── requirements.txt
+    ├── nginx-wuhan-job.conf
+    └── setup.sh
 ```
 
-## 部署到 GitHub Pages
+## 部署到 GitHub Pages（可选/历史方案）
+
+> 本项目已支持**自托管**（见下），GitHub Pages 仅作为静态预览的备选。
+> 注意：自托管后前端改从 `/api/jobs` 读取数据，GitHub Pages 上无后端，故 Pages 版本不再实时可用。
 
 1. Fork 或克隆此仓库
 2. 在仓库设置中启用 GitHub Pages
 3. 选择 `main` 分支作为源
 4. 访问提供的 GitHub Pages 链接
+
+## 自托管部署（推荐，不受 GitHub 额度限制）
+
+在自己的服务器（Linux + systemd + Nginx）上常驻运行：后端用 Flask 托管前端 +
+APScheduler 按计划后台跑爬虫，实现"一直运行、持续更新"。
+
+### 目录新增
+
+```
+server/
+├── app.py                 # Flask 后端：托管前端 + /api/jobs + 定时爬取/刷新
+├── requirements.txt       # 后端依赖（flask / apscheduler / waitress / tzdata）
+├── nginx-wuhan-job.conf   # Nginx 反代配置
+└── setup.sh               # 一键部署脚本（装依赖/venv/Playwright/systemd/Nginx）
+```
+
+### 在服务器上部署
+
+```bash
+# 1) 以 ubuntu 用户克隆仓库
+git clone <你的仓库地址> ~/wuhan-teacher-job-tracker
+cd ~/wuhan-teacher-job-tracker
+
+# 2) 用 root/sudo 运行一键脚本（安装依赖、建 venv、注册 systemd 与 Nginx）
+sudo bash server/setup.sh
+```
+
+完成后访问 `http://<服务器公网IP>/`（**记得在云安全组放通 80 端口**）。
+查看运行日志：`sudo journalctl -u wuhan-job -f`。
+
+### 定时计划（北京时间 Asia/Shanghai）
+
+- 主爬虫 `crawler/main.py`：每天 **0:00 / 12:00**
+- 刷新公众号链接 `crawler/refresh_wechat_links.py`：每天 **0:30 / 6:30 / 12:30 / 18:30**
+
+均由 `server/app.py` 中的 APScheduler 调度，无需 GitHub Actions。
+
+### 维护
+
+- 重启服务：`sudo systemctl restart wuhan-job`
+- 更新代码：`git pull` 后 `sudo systemctl restart wuhan-job`（依赖变更时重跑 `setup.sh`）
+- 停止 GitHub Actions 定时：两个 workflow 的 `schedule` 已注释关闭，仅保留手动触发作为备用
 
 ## 技术栈
 
