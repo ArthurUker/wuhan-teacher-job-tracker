@@ -22,6 +22,7 @@ permissions:
 jobs:
   crawl:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
 
     steps:
     - name: 检出代码
@@ -43,6 +44,12 @@ jobs:
 
     - name: 运行爬虫
       run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        # 先同步到远端最新 main，尽量在最新数据（含刷新工作流已更新的链接）基础上爬取，
+        # 减少后续推送时的并发冲突
+        git fetch origin main
+        git rebase origin/main || git rebase --abort
         cd crawler
         python main.py
 
@@ -51,35 +58,41 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-        # 先检查是否有实际变更；无变更则直接跳过，避免后续 stash pop 因无 stash entry 而失败
         git add data/jobs.json
         if git diff --cached --quiet; then
           echo "没有数据变更，跳过提交。"
           exit 0
         fi
 
-        # 暂存爬虫生成的新数据，避免 rebase 时因未暂存更改而失败
-        git stash push -m "临时暂存爬虫数据"
-
-        # 拉取远端最新代码并 rebase
-        git fetch origin main
-        git rebase origin/main
-
-        # 恢复暂存的爬虫数据
-        git stash pop
-
-        # 重新 add 变更文件，准备提交
-        git add data/jobs.json
-
         git commit -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')"
 
-        # 带重试的 rebase + push，兜底处理极端竞态（如外部推送）
+        # 带重试的 rebase + push。两个工作流都会改 data/jobs.json，并发时行级合并会
+        # 产生 CONFLICT。这里不手工解冲突，而是「以远端 main 为准 + 在其上重新爬取合并」：
+        # 既保留刷新工作流更新的链接，又把本次新抓到的条目合并进去，从根上避免冲突。
         for i in 1 2 3 4 5; do
-          if git pull --rebase origin main && git push origin main; then
-            echo "推送成功。"
-            exit 0
+          if git pull --rebase origin main; then
+            if git push origin main; then
+              echo "推送成功。"
+              exit 0
+            fi
+          else
+            # rebase 冲突：以远端 main 为准，重新在其上爬取并改写本次提交
+            echo "检测到 data/jobs.json 冲突，采用「以远端为准 + 重新爬取合并」策略解决..."
+            git checkout --theirs -- data/jobs.json 2>/dev/null || true
+            git add data/jobs.json
+            GIT_EDITOR=true git rebase --continue 2>/dev/null || git rebase --abort
+            cd crawler
+            python main.py
+            cd ..
+            git add data/jobs.json
+            git commit --amend -m "自动更新招聘数据 - $(date +'%Y-%m-%d %H:%M:%S')" 2>/dev/null \
+              || git commit -m "自动更新招聘数据(冲突重爬) - $(date +'%Y-%m-%d %H:%M:%S')"
+            if git push origin main; then
+              echo "推送成功。"
+              exit 0
+            fi
           fi
-          echo "第 $i 次推送失败，可能是远端有新提交，3 秒后重试..."
+          echo "第 $i 次推送失败，3 秒后重试..."
           git rebase --abort 2>/dev/null || true
           sleep 3
         done
