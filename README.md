@@ -1,15 +1,25 @@
 # 武汉教师招聘信息追踪系统
 
-🎓 实时监控武汉市及湖北省教师招聘信息，帮助教师及时了解招聘动态。
+🎓 实时监控武汉市及湖北省中小学教师招聘信息，自动爬取、去重、过滤，并通过 Web 界面集中展示。
+
+> 当前部署形态：**自托管**（自有服务器上 Flask 常驻进程 + APScheduler 定时爬取），
+> 不再依赖 GitHub Pages / GitHub Actions 额度。设计细节见 [docs/DESIGN.md](docs/DESIGN.md)。
 
 ## 功能特点
 
-- ✅ 自动爬取武汉市教育局官网招聘信息
-- ✅ 自动爬取湖北省教育考试院招聘信息
-- ✅ 每日自动更新数据（通过 GitHub Actions）
-- ✅ 提供友好的 Web 界面查看招聘信息
-- ✅ 支持搜索和筛选功能
-- ✅ 免费部署在 GitHub Pages
+- ✅ 多源自动爬取：市/区教育局、人社局、省考试院、微信公众号（搜狗）
+- ✅ 智能过滤：排除高校招教、事业单位综合招聘、公示/结果类等非中小学教师招聘
+- ✅ 自动去重与过期清理（按发布日期，带标题年份回填）
+- ✅ 微信公众号临时链接自动刷新为永久链接
+- ✅ 常驻后台按计划更新，"一直运行、持续更新"
+- ✅ 友好的 Web 界面：来源筛选、分页、卡片/列表视图
+
+## 技术栈
+
+- **爬虫**：Python + requests + BeautifulSoup + lxml + Playwright（搜狗微信）
+- **后端**：Flask + APScheduler + waitress
+- **前端**：原生 HTML + CSS + JavaScript（无框架）
+- **部署**：Ubuntu + systemd + Nginx（自托管）
 
 ## 数据来源
 
@@ -33,7 +43,7 @@
 8. **蔡甸区人民政府（教育局）** - https://www.caidian.gov.cn/qgdwxxgk/qjbm/jyj_21923/zkly/
    - ⭐⭐⭐ 中等价值
 9. **孝感市教育局** - https://jyj.xiaogan.gov.cn/c/xgsjyj/zkly/
-   - ⭐⭐⭐ 中等价值：有WAF防护，需测试
+   - ⭐⭐⭐ 中等价值：有 WAF 防护
 
 ### 省级数据源
 
@@ -45,141 +55,120 @@
     - ⭐⭐⭐⭐⭐ 高价值：覆盖全平台公众号文章，时效性最强
     - 搜索关键词：武汉/湖北/黄石/鄂州/黄冈/孝感 教师招聘
 
-## 使用方法
-
-### 1. 在线访问
-
-访问 GitHub Pages 部署的网站（部署后提供链接）
-
-### 2. 本地运行
-
-#### 运行爬虫
-
-```bash
-cd crawler
-pip install -r requirements.txt
-python main.py
-```
-
-#### 查看前端
-
-在 `frontend` 目录启动一个简单的 HTTP 服务器：
-
-```bash
-cd frontend
-python -m http.server 8000
-```
-
-然后访问 http://localhost:8000
-
-### 3. 自动更新
-
-- **自托管（推荐）**：由 `server/app.py` 的 APScheduler 按计划后台运行爬虫，无需人工干预。
-- **GitHub Actions（备用）**：两个 workflow 的定时已关闭，仅保留 `workflow_dispatch` 手动触发。
-
 ## 项目结构
 
 ```
 wuhan-teacher-job-tracker/
 ├── crawler/                        # 爬虫脚本
-│   ├── main.py                    # 主程序
-│   ├── crawl_wuhan_education.py   # 武汉市教育局
-│   ├── crawl_wuhan_hr.py          # 武汉市人社局
-│   ├── crawl_hubei_exam.py        # 湖北省教育考试院
-│   ├── crawl_optics_valley.py     # 武汉东湖新技术开发区
-│   ├── crawl_hanyang.py           # 汉阳区人民政府
-│   ├── crawl_caidian.py           # 蔡甸区人民政府
-│   ├── crawl_ezhou.py             # 鄂州市教育局
-│   ├── crawl_huangshi.py          # 黄石市教育局
-│   ├── crawl_huanggang.py         # 黄冈市教育局
-│   ├── crawl_xiaogan.py           # 孝感市教育局
-│   └── merge_data.py              # 数据合并工具
-│   └── requirements.txt           # Python 依赖
-├── data/                          # 数据文件
-│   └── jobs.json                 # 爬取的招聘信息
-├── frontend/                      # 前端页面
-│   ├── index.html                # 主页面
-│   ├── style.css                 # 样式
-│   └── app.js                    # JavaScript 逻辑
-└── .github/
-    └── workflows/                 # GitHub Actions 配置（已改为手动备用）
-        └── crawl.yml
-└── server/                       # 自托管后端（Flask + APScheduler）
-    ├── app.py
-    ├── requirements.txt
-    ├── nginx-wuhan-job.conf
-    └── setup.sh
+│   ├── main.py                     # 主程序：爬取 + 合并 + 去重 + 过期清理
+│   ├── refresh_wechat_links.py     # 公众号链接刷新（临时链接 → 永久链接）
+│   ├── crawl_utils.py              # 过滤/去重等公共逻辑
+│   ├── crawl_*.py                  # 各数据源爬虫
+│   └── requirements.txt            # 爬虫依赖
+├── data/
+│   └── jobs.json                   # 招聘数据（单一数据源：爬虫写，前端读）
+├── frontend/                       # 前端页面
+│   ├── index.html
+│   ├── style.css
+│   └── app.js                      # 从 /api/jobs 读数据并渲染
+├── server/                         # 自托管后端（Flask + APScheduler）
+│   ├── app.py                      # 托管前端 + /api/jobs + 定时爬取/刷新
+│   ├── requirements.txt            # 后端依赖
+│   ├── nginx-wuhan-job.conf        # Nginx 反代配置
+│   └── setup.sh                    # 一键部署脚本
+├── docs/                           # 开发文档
+│   ├── README.md                   # 文档索引
+│   └── DESIGN.md                   # 自托管设计方案与架构图
+└── .github/workflows/              # GitHub Actions（定时已关闭，仅手动备用）
+    ├── crawl.yml
+    └── refresh-wechat.yml
 ```
 
-## 部署到 GitHub Pages（可选/历史方案）
+## 快速开始
 
-> 本项目已支持**自托管**（见下），GitHub Pages 仅作为静态预览的备选。
-> 注意：自托管后前端改从 `/api/jobs` 读取数据，GitHub Pages 上无后端，故 Pages 版本不再实时可用。
+### 一、服务器部署（推荐）
 
-1. Fork 或克隆此仓库
-2. 在仓库设置中启用 GitHub Pages
-3. 选择 `main` 分支作为源
-4. 访问提供的 GitHub Pages 链接
-
-## 自托管部署（推荐，不受 GitHub 额度限制）
-
-在自己的服务器（Linux + systemd + Nginx）上常驻运行：后端用 Flask 托管前端 +
-APScheduler 按计划后台跑爬虫，实现"一直运行、持续更新"。
-
-设计细节与架构图见 [docs/DESIGN.md](docs/DESIGN.md)。
-
-### 目录新增
-
-```
-server/
-├── app.py                 # Flask 后端：托管前端 + /api/jobs + 定时爬取/刷新
-├── requirements.txt       # 后端依赖（flask / apscheduler / waitress / tzdata）
-├── nginx-wuhan-job.conf   # Nginx 反代配置
-└── setup.sh               # 一键部署脚本（装依赖/venv/Playwright/systemd/Nginx）
-```
-
-### 在服务器上部署
+在 Linux 服务器（Ubuntu 22.04 + systemd + Nginx）上常驻运行：
 
 ```bash
-# 1) 以 ubuntu 用户克隆仓库
-git clone <你的仓库地址> ~/wuhan-teacher-job-tracker
+# 1) 克隆仓库
+git clone https://github.com/ArthurUker/wuhan-teacher-job-tracker.git ~/wuhan-teacher-job-tracker
 cd ~/wuhan-teacher-job-tracker
 
-# 2) 用 root/sudo 运行一键脚本（安装依赖、建 venv、注册 systemd 与 Nginx）
+# 2) 一键部署（装依赖 / 建 venv / 装 Playwright / 注册 systemd / 配置 Nginx）
 sudo bash server/setup.sh
 ```
 
 完成后访问 `http://<服务器公网IP>/`（**记得在云安全组放通 80 端口**）。
-查看运行日志：`sudo journalctl -u wuhan-job -f`。
 
-### 定时计划（北京时间 Asia/Shanghai）
+一键脚本做了：安装系统依赖与浏览器库 → 创建 Python 虚拟环境并安装 `crawler` + `server`
+依赖 → 安装 Playwright Chromium → 注册并启动 `wuhan-job` systemd 服务 → 配置 Nginx 反代。
 
-- 主爬虫 `crawler/main.py`：每天 **0:00 / 12:00**
-- 刷新公众号链接 `crawler/refresh_wechat_links.py`：每天 **0:30 / 6:30 / 12:30 / 18:30**
+### 二、本地开发运行
+
+```bash
+# 安装依赖
+pip install -r crawler/requirements.txt
+pip install -r server/requirements.txt
+python -m playwright install chromium
+
+# 启动后端（默认 0.0.0.0:8000，内置托管前端 + 定时任务）
+python server/app.py
+```
+
+然后访问 http://localhost:8000 。
+如只想手动跑一次爬虫：`cd crawler && python main.py`。
+
+## API 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/` | 前端页面 |
+| GET | `/api/jobs` | 返回全部招聘数据（JSON 数组，`no-store` 不缓存） |
+| GET | `/api/status` | 健康检查：当前时间与数据条数 |
+
+## 定时计划（北京时间 Asia/Shanghai）
+
+| 任务 | 脚本 | 时刻 |
+|---|---|---|
+| 主爬虫 | `crawler/main.py` | 每天 **0:00 / 12:00** |
+| 刷新公众号链接 | `crawler/refresh_wechat_links.py` | 每天 **0:30 / 6:30 / 12:30 / 18:30** |
 
 均由 `server/app.py` 中的 APScheduler 调度，无需 GitHub Actions。
 
-### 维护
+## 运维常用命令
 
-- 重启服务：`sudo systemctl restart wuhan-job`
-- 更新代码：`git pull` 后 `sudo systemctl restart wuhan-job`（依赖变更时重跑 `setup.sh`）
-- 停止 GitHub Actions 定时：两个 workflow 的 `schedule` 已注释关闭，仅保留手动触发作为备用
+```bash
+# 查看实时日志
+sudo journalctl -u wuhan-job -f
 
-## 技术栈
+# 重启 / 停止 / 启动服务
+sudo systemctl restart wuhan-job
+sudo systemctl stop wuhan-job
+sudo systemctl start wuhan-job
 
-- **后端**: Python + requests + BeautifulSoup
-- **前端**: HTML + CSS + JavaScript
-- **部署**: GitHub Pages + GitHub Actions
+# 更新代码后重启（依赖有变更时重跑 setup.sh）
+git pull && sudo systemctl restart wuhan-job
+
+# 手动触发一次爬取
+cd ~/wuhan-teacher-job-tracker/crawler && ../venv/bin/python main.py
+```
+
+- 数据文件：`data/jobs.json`
+- 服务日志：`logs/server.log` 或 `journalctl -u wuhan-job`
+- 修改端口：编辑 `server/nginx-wuhan-job.conf` 的 `listen`，然后 `sudo nginx -t && sudo systemctl restart nginx`
+
+## GitHub Actions（备用）
+
+两个工作流（`crawl.yml`、`refresh-wechat.yml`）的定时触发已注释关闭，仅保留
+`workflow_dispatch` 手动触发，作为自托管故障时的临时备用数据源。如需恢复定时，
+取消对应 `schedule` 段注释即可。
 
 ## 注意事项
 
-- 爬虫仅用于学习和个人使用，请遵守目标网站的 robots.txt
-- 如遇反爬措施，可能需要更新爬虫策略
-- 数据更新频率受 GitHub Actions 限制（每天一次）
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
+- 爬虫仅用于学习和个人使用，请遵守目标网站的 robots.txt。
+- 如遇反爬措施（如搜狗验证码），可能需要更新爬虫策略。
+- 部分政府站点对境外 IP 不可达；使用国内服务器可提升可用性。
 
 ## 许可证
 
