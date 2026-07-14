@@ -126,6 +126,8 @@ wuhan-teacher-job-tracker/
 在自己的服务器（Linux + systemd + Nginx）上常驻运行：后端用 Flask 托管前端 +
 APScheduler 按计划后台跑爬虫，实现"一直运行、持续更新"。
 
+设计细节与架构图见 [docs/DESIGN.md](docs/DESIGN.md)。
+
 ### 目录新增
 
 ```
