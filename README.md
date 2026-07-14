@@ -77,7 +77,6 @@ wuhan-teacher-job-tracker/
 │   ├── nginx-wuhan-job.conf        # Nginx 反代配置
 │   └── setup.sh                    # 一键部署脚本
 ├── docs/                           # 开发文档
-│   ├── README.md                   # 文档索引
 │   └── DESIGN.md                   # 自托管设计方案与架构图
 └── .github/workflows/              # GitHub Actions（定时已关闭，仅手动备用）
     ├── crawl.yml
